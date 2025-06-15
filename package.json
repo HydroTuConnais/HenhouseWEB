@@ -1,0 +1,19 @@
+{
+  "name": "henhouseapp",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel dev",
+    "dev:backend": "pnpm --filter @monorepo/backend dev",
+    "dev:frontend": "pnpm --filter @monorepo/frontend dev",
+    "build": "pnpm --recursive build",
+    "build:backend": "pnpm --filter @monorepo/backend build",
+    "build:frontend": "pnpm --filter @monorepo/frontend build",
+    "lint": "pnpm --recursive lint",
+    "test": "pnpm --recursive test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
