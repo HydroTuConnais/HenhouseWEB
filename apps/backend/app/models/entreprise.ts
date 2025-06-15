@@ -24,7 +24,7 @@ export default class Entreprise extends BaseModel {
   declare users: HasMany<typeof User>
 
   @manyToMany(() => Menu, {
-    pivotTable: 'entreprise_menus'
+    pivotTable: 'entreprise_menus',
   })
   declare menus: ManyToMany<typeof Menu>
 

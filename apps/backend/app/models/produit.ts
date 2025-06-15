@@ -42,16 +42,14 @@ export default class Produit extends BaseModel {
 
   @manyToMany(() => Commande, {
     pivotTable: 'commande_produits',
-    pivotColumns: ['quantite', 'prix_unitaire']
+    pivotColumns: ['quantite', 'prix_unitaire'],
   })
   declare commandes: ManyToMany<typeof Commande>
 
   // Getters
   get fullImageUrl() {
     if (this.imageUrl) {
-      return this.imageUrl.startsWith('http') 
-        ? this.imageUrl 
-        : `/uploads/produits/${this.imageUrl}`
+      return this.imageUrl.startsWith('http') ? this.imageUrl : `/uploads/produits/${this.imageUrl}`
     }
     return null
   }

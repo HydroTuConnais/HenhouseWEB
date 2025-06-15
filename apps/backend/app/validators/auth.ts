@@ -7,13 +7,13 @@ export const registerValidator = vine.compile(
     email: vine.string().email().normalizeEmail(),
     password: vine.string().minLength(6),
     role: vine.enum(['entreprise', 'admin']),
-    entrepriseId: vine.number().optional()
+    entrepriseId: vine.number().optional(),
   })
 )
 
 export const loginValidator = vine.compile(
   vine.object({
     email: vine.string().email().normalizeEmail(),
-    password: vine.string()
+    password: vine.string(),
   })
 )

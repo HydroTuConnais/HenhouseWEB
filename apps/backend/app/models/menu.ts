@@ -37,16 +37,14 @@ export default class Menu extends BaseModel {
   declare produits: HasMany<typeof Produit>
 
   @manyToMany(() => Entreprise, {
-    pivotTable: 'entreprise_menus'
+    pivotTable: 'entreprise_menus',
   })
   declare entreprises: ManyToMany<typeof Entreprise>
 
   // Getters
   get fullImageUrl() {
     if (this.imageUrl) {
-      return this.imageUrl.startsWith('http') 
-        ? this.imageUrl 
-        : `/uploads/menus/${this.imageUrl}`
+      return this.imageUrl.startsWith('http') ? this.imageUrl : `/uploads/menus/${this.imageUrl}`
     }
     return null
   }
