@@ -1,53 +1,70 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
+import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const mutation = useMutation({
-    mutationFn: async (form: { email: string; password: string }) => {
-      const res = await fetch("http://localhost:3333/api/login", {
+    mutationFn: async (form: { username: string; password: string }) => {
+      const res = await fetch("http://localhost:3333/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
+        credentials: "include",
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || "Erreur de connexion");
+        return Promise.reject(new Error(data?.message || "Erreur de connexion"));
       }
-      return res.json();
+
+      return data;
     },
+    onSuccess: (data) => {
+      toast.success('Connexion réussie !', {
+        description: `Bienvenue, ${data.user?.username || "utilisateur"}!`,
+      });
+      //Todo: Redirection après la connexion réussie
+    },
+    onError: (error) => {
+      toast.error('Échec de la connexion', {
+        description: (error as Error)?.message || "Veuillez vérifier vos identifiants",
+      });
+    }
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutation.reset();
-    mutation.mutate({ email, password });
+    mutation.mutate({ username, password });
   };
 
+  useEffect(() => {
+    mutation.reset();
+  }, [username, password]);
+
   return (
-    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
+    <div className="flex flex-col min-h-screen md:flex-row">
       {/* Colonne gauche : Formulaire */}
-      <div className="flex flex-col justify-center items-center px-6 py-12 md:px-16 bg-white">
+      <div className="flex flex-1 flex-col justify-center items-center px-6 py-12 md:px-16 bg-white">
         <div className="w-full max-w-md">
           <h1 className="text-4xl font-extrabold text-[#9C6B3B] mb-3">Bienvenue sur Hen House</h1>
           <p className="text-[#704214] mb-8 text-lg">Commandez simplement, gérez facilement.</p>
           <div className="p-8 shadow-xl border border-[#E5C9B6] rounded-xl bg-white">
             <form onSubmit={handleSubmit} className="flex flex-col gap-4" autoComplete="off">
               <div>
-                <label className="block text-sm font-medium mb-1" htmlFor="email">Email</label>
+                <label className="block text-sm font-medium mb-1" htmlFor="username">Nom d'utilisateur</label>
                 <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="Entrer votre email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="Entrer votre nom d'utilisateur"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
                   required
                 />
               </div>
@@ -63,29 +80,24 @@ export default function LoginPage() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full mt-2" disabled={mutation.isPending}>
+              <Button
+                type="submit"
+                className="w-full mt-2"
+                disabled={mutation.isPending}
+              >
                 {mutation.isPending ? "Connexion..." : "Se connecter"}
               </Button>
-              {mutation.isError && (
-                <div className="mt-4 text-red-600 bg-red-50 border border-red-200 rounded p-2 text-center text-sm">
-                  {(mutation.error as Error)?.message}
-                </div>
-              )}
-              {mutation.isSuccess && (
-                <div className="mt-4 text-green-700 bg-green-50 border border-green-200 rounded p-2 text-center text-sm">
-                  Connexion réussie !
-                </div>
-              )}
+              {/* Tu peux garder ou retirer ces messages statiques */}
             </form>
           </div>
         </div>
       </div>
       {/* Colonne droite : Image */}
-      <div className="hidden md:flex items-center justify-center bg-[#E5C9B6]">
+      <div className="hidden md:flex flex-1 items-center justify-center">
         <img
           src="/login-side.png"
           alt="Illustration Hen House"
-          className="object-cover rounded-xl shadow-2xl w-4/5 h-4/5 max-h-[600px]"
+          className="object-cover rounded-xl shadow-2xl w-full mx-6 max-w-none max-h-none"
         />
       </div>
     </div>

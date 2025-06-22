@@ -4,8 +4,8 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+    <div className="flex flex-col font-[family-name:var(--font-geist-sans)] min-h-0 flex-1">
+      <main className="flex flex-col gap-[32px] items-center flex-1 p-8 pb-24 sm:p-20 justify-center">
         <Image
           className="dark:invert"
           src="/next.svg"
@@ -29,14 +29,18 @@ export default function Home() {
 
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-center mt-8">
           <Link href="/login">
-            <button className="w-48 bg-blue-600 text-white rounded p-2">Se connecter</button>
+            <button className="w-48 bg-blue-600 text-white rounded p-2">
+              Se connecter
+            </button>
           </Link>
           <Link href="/menu">
-            <button className="w-48 bg-gray-300 text-black rounded p-2">Voir les menus</button>
+            <button className="w-48 bg-gray-300 text-black rounded p-2">
+              Voir les menus
+            </button>
           </Link>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
+      <footer className="bottom-0 left-0 w-full flex gap-[24px] flex-wrap items-center justify-center py-4 text-xs text-gray-500 border-t bg-white/80 z-50">
         <a
           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
           href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"

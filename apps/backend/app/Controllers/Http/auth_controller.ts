@@ -7,17 +7,17 @@ export default class AuthController {
     const payload = await request.validateUsing(registerValidator)
 
     const existingUser = await User.findBy('username', payload.username)
-  
-  if (existingUser) {
-    return response.conflict({ 
-      message: 'Ce nom d\'utilisateur est déjà utilisé',
-      field: 'username'
-    })
-  }
+
+    if (existingUser) {
+      return response.conflict({
+        message: "Ce nom d'utilisateur est déjà utilisé",
+        field: 'username',
+      })
+    }
 
     const user = await User.create(payload)
-    
-    if(user.entrepriseId){
+
+    if (user.entrepriseId) {
       await user.load('entreprise')
     }
 
@@ -43,7 +43,7 @@ export default class AuthController {
 
     await auth.use('web').login(user)
 
-    if(user.entrepriseId) {
+    if (user.entrepriseId) {
       await user.load('entreprise')
     }
 
