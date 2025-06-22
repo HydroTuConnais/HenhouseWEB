@@ -68,7 +68,22 @@ export default class MenusController {
     }
 
     const payload = await request.validateUsing(createMenuValidator)
-    const menu = await Menu.create(payload)
+    
+    const { entrepriseIds, ...menuData } = payload
+    
+    const menu = await Menu.create(menuData)
+
+    try {
+      if (entrepriseIds && Array.isArray(entrepriseIds)) {
+        await menu.related('entreprises').attach(entrepriseIds)
+      }
+    } catch (error) {
+      console.error('Erreur lors du attach:', error.message)
+      return response.badRequest({ 
+        message: "Erreur lors de l'association avec les entreprises. Vérifiez que les IDs d'entreprise existent.", 
+        details: error.message 
+      })
+    }
 
     const image = request.file('image')
     if (image) {
@@ -89,6 +104,8 @@ export default class MenusController {
       }
     }
 
+    await menu.load('entreprises')
+
     return response.created({
       message: 'Menu créé avec succès',
       menu: {
@@ -106,11 +123,24 @@ export default class MenusController {
     const menu = await Menu.findOrFail(params.id)
     const payload = await request.validateUsing(updateMenuValidator)
 
+    const { entrepriseIds, ...menuData } = payload
+    
     const oldImagePath = menu.imagePath
 
-    menu.merge(payload)
+    menu.merge(menuData)
 
-    // Gestion de la nouvelle image
+    try {
+      if (entrepriseIds && Array.isArray(entrepriseIds)) {
+        await menu.related('entreprises').sync(entrepriseIds)
+      }
+    } catch (error) {
+      console.error('Erreur lors du sync:', error.message)
+      return response.badRequest({ 
+        message: "Erreur lors de l'association avec les entreprises. Vérifiez que les IDs d'entreprise existent.", 
+        details: error.message 
+      })
+    }
+
     const image = request.file('image')
     if (image) {
       try {
@@ -124,7 +154,6 @@ export default class MenusController {
         menu.imageUrl = uploadResult.filename
         menu.imagePath = uploadResult.path
 
-        // Supprimer l'ancienne image
         if (oldImagePath) {
           await ImageService.deleteImage(menu.imageUrl!)
         }
@@ -134,6 +163,9 @@ export default class MenusController {
     }
 
     await menu.save()
+    
+    // Charger les relations pour la réponse
+    await menu.load('entreprises')
 
     return response.ok({
       message: 'Menu mis à jour avec succès',
@@ -144,29 +176,17 @@ export default class MenusController {
     })
   }
 
-  async destroy({ params, response, auth }: HttpContext) {
-    if (auth.user!.role !== 'admin') {
-      return response.forbidden({ message: 'Accès refusé' })
-    }
-
-    const menu = await Menu.findOrFail(params.id)
-
-    if (menu.imageUrl) {
-      await ImageService.deleteImage(menu.imageUrl)
-    }
-
-    menu.active = false
-    await menu.save()
-
-    return response.ok({ message: 'Menu supprimé avec succès' })
-  }
-
   async uploadImage({ params, request, response, auth }: HttpContext) {
     if (auth.user!.role !== 'admin') {
       return response.forbidden({ message: 'Accès refusé' })
     }
 
-    const menu = await Menu.findOrFail(params.id)
+    const menu = await Menu.find(params.id)
+  
+    if (!menu) {
+      return response.notFound({ message: 'Menu non trouvé' })
+    }
+
     const image = request.file('image')
 
     if (!image) {

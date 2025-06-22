@@ -188,7 +188,12 @@ export default class ProduitsController {
       return response.forbidden({ message: 'Accès refusé' })
     }
 
-    const produit = await Produit.findOrFail(params.id)
+    const produit = await Produit.find(params.id)
+  
+    if (!produit) {
+      return response.notFound({ message: 'Produit non trouvé' })
+    }
+    
     const image = request.file('image')
 
     if (!image) {
@@ -196,7 +201,6 @@ export default class ProduitsController {
     }
 
     try {
-      // Supprimer l'ancienne image
       if (produit.imageUrl) {
         await ImageService.deleteImage(produit.imageUrl)
       }

@@ -1,0 +1,231 @@
+import type { HttpContext } from '@adonisjs/core/http'
+import Entreprise from '#models/entreprise'
+import User from '#models/user'
+import Menu from '#models/menu'
+import { createEntrepriseValidator, updateEntrepriseValidator } from '#validators/entreprise'
+
+export default class EntrepriseController {
+  /**
+   * Liste toutes les entreprises
+   */
+  async index({ response, auth }: HttpContext) {
+    if (auth.user!.role !== 'admin') {
+      return response.forbidden({ message: 'Accès refusé' })
+    }
+
+    const entreprises = await Entreprise.query().orderBy('nom', 'asc')
+    
+    return response.ok({ entreprises })
+  }
+
+  /**
+   * Récupère une entreprise spécifique avec ses relations
+   */
+  async show({ params, response, auth }: HttpContext) {
+    try {
+      const entreprise = await Entreprise.findOrFail(params.id)
+      
+      if (auth.user!.role !== 'admin' && auth.user!.entrepriseId !== entreprise.id) {
+        return response.forbidden({ message: 'Accès refusé' })
+      }
+
+      await entreprise.load('menus')
+      await entreprise.load('users')
+      await entreprise.load('commandes')
+
+      return response.ok({ entreprise })
+    } catch (error) {
+      if (error.name === 'E_ROW_NOT_FOUND') {
+        return response.notFound({ message: 'Entreprise non trouvée' })
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Crée une nouvelle entreprise
+   */
+  async store({ request, response, auth }: HttpContext) {
+    if (auth.user!.role !== 'admin') {
+      return response.forbidden({ message: 'Accès refusé' })
+    }
+
+    const payload = await request.validateUsing(createEntrepriseValidator)
+    const entreprise = await Entreprise.create(payload)
+
+    return response.created({
+      message: 'Entreprise créée avec succès',
+      entreprise
+    })
+  }
+
+  /**
+   * Met à jour une entreprise existante
+   */
+  async update({ params, request, response, auth }: HttpContext) {
+    try {
+      if (auth.user!.role !== 'admin') {
+        return response.forbidden({ message: 'Accès refusé' })
+      }
+
+      const entreprise = await Entreprise.findOrFail(params.id)
+      const payload = await request.validateUsing(updateEntrepriseValidator)
+      
+      entreprise.merge(payload)
+      await entreprise.save()
+
+      return response.ok({
+        message: 'Entreprise mise à jour avec succès',
+        entreprise
+      })
+    } catch (error) {
+      if (error.name === 'E_ROW_NOT_FOUND') {
+        return response.notFound({ message: 'Entreprise non trouvée' })
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Supprime une entreprise
+   */
+  async destroy({ params, response, auth }: HttpContext) {
+    try {
+      if (auth.user!.role !== 'admin') {
+        return response.forbidden({ message: 'Accès refusé' })
+      }
+
+      const entreprise = await Entreprise.findOrFail(params.id)
+      
+      // Vérifier si l'entreprise a des utilisateurs ou commandes
+      const usersCount = await User.query()
+        .where('entreprise_id', entreprise.id)
+        .count('* as total')
+        
+      if (parseInt(usersCount[0].$extras.total) > 0) {
+        return response.badRequest({ 
+          message: 'Impossible de supprimer une entreprise avec des utilisateurs associés' 
+        })
+      }
+
+      await entreprise.delete()
+
+      return response.ok({ message: 'Entreprise supprimée avec succès' })
+    } catch (error) {
+      if (error.name === 'E_ROW_NOT_FOUND') {
+        return response.notFound({ message: 'Entreprise non trouvée' })
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Récupère les menus associés à l'entreprise
+   */
+  async getMenus({ params, response, auth }: HttpContext) {
+    try {
+      const entrepriseId = params.id
+      
+      if (auth.user!.role !== 'admin' && auth.user!.entrepriseId !== parseInt(entrepriseId)) {
+        return response.forbidden({ message: 'Accès refusé' })
+      }
+
+      const entrepriseExists = await Entreprise.find(entrepriseId)
+      if (!entrepriseExists) {
+        return response.notFound({ message: 'Entreprise non trouvée' })
+      }
+
+      const menus = await Menu.query()
+        .whereHas('entreprises', (query) => {
+          query.where('entreprise_id', entrepriseId)
+        })
+        .where('active', true)
+        .preload('produits', (query) => {
+          query.where('active', true)
+        })
+
+      return response.ok({ menus })
+    } catch (error) {
+      console.error('Erreur lors de la récupération des menus:', error)
+      return response.internalServerError({
+        message: 'Une erreur est survenue lors de la récupération des menus',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Associe des menus à une entreprise
+   */
+  async associateMenus({ params, request, response, auth }: HttpContext) {
+    try {
+      if (auth.user!.role !== 'admin') {
+        return response.forbidden({ message: 'Accès refusé' })
+      }
+
+      const entreprise = await Entreprise.findOrFail(params.id)
+      
+      const { menuIds } = request.only(['menuIds'])
+      
+      if (!menuIds || !Array.isArray(menuIds)) {
+        return response.badRequest({ message: 'menuIds doit être un tableau d\'identifiants' })
+      }
+
+      const existingMenus = await Menu.query().whereIn('id', menuIds).select('id')
+      const validMenuIds = existingMenus.map(menu => menu.id)
+      
+      if (validMenuIds.length === 0) {
+        return response.badRequest({ message: 'Aucun menu valide fourni' })
+      }
+      
+      await entreprise.related('menus').sync(validMenuIds)
+      
+      await entreprise.load('menus')
+      
+      return response.ok({
+        message: 'Menus associés avec succès',
+        entreprise
+      })
+    } catch (error) {
+      if (error.name === 'E_ROW_NOT_FOUND') {
+        return response.notFound({ message: 'Entreprise non trouvée' })
+      }
+      
+      console.error('Erreur lors de l\'association des menus:', error)
+      return response.internalServerError({ 
+        message: 'Une erreur est survenue lors de l\'association des menus',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Récupère les commandes de l'entreprise
+   */
+  async getCommandes({ params, response, auth }: HttpContext) {
+    try {
+      const entrepriseId = params.id
+      
+      if (auth.user!.role !== 'admin' && auth.user!.entrepriseId !== parseInt(entrepriseId)) {
+        return response.forbidden({ message: 'Accès refusé' })
+      }
+
+      const entreprise = await Entreprise.findOrFail(entrepriseId)
+      await entreprise.load('commandes', (query) => {
+        query.orderBy('created_at', 'desc')
+      })
+
+      return response.ok({ commandes: entreprise.commandes })
+    } catch (error) {
+      if (error.name === 'E_ROW_NOT_FOUND') {
+        return response.notFound({ message: 'Entreprise non trouvée' })
+      }
+      
+      console.error('Erreur lors de la récupération des commandes:', error)
+      return response.internalServerError({
+        message: 'Une erreur est survenue lors de la récupération des commandes',
+        error: error.message
+      })
+    }
+  }
+}

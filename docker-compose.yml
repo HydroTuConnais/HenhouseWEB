@@ -1,6 +1,4 @@
-﻿version: '3.8'
-
-services:
+﻿services:
   db:
     container_name: henhouse_db
     image: postgres:latest

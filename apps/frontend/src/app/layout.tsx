@@ -1,0 +1,70 @@
+"use client";
+import React, { useState } from "react";
+import Link from "next/link";
+import "./globals.css";
+import QueryProvider from "@/components/providers/query-provider";
+
+function MobileDrawer() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        aria-label="Ouvrir le menu"
+        className="p-2 rounded border border-gray-200 bg-white shadow-sm"
+        onClick={() => setOpen(true)}
+      >
+        <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setOpen(false)}>
+          <nav
+            className="fixed top-0 left-0 h-full w-64 bg-white shadow-lg flex flex-col gap-4 p-8 animate-slide-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              aria-label="Fermer le menu"
+              className="mb-8 self-end p-2 rounded border border-gray-200 bg-white"
+              onClick={() => setOpen(false)}
+            >
+              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+            </button>
+            <Link href="/" className="hover:underline text-lg" onClick={() => setOpen(false)}>Accueil</Link>
+            <Link href="/menu" className="hover:underline text-lg" onClick={() => setOpen(false)}>Menu</Link>
+            <Link href="/login" className="hover:underline text-lg" onClick={() => setOpen(false)}>Connexion</Link>
+          </nav>
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  console.log("RootLayout rendered");
+  return (
+    <html lang="fr">
+      <body className="antialiased bg-background text-foreground">
+        <header className="w-full flex items-center justify-between px-4 py-3 border-b bg-white/80 sticky top-0 z-50">
+          <div className="font-bold text-xl tracking-tight">Hen House</div>
+          <nav className="hidden md:flex gap-6">
+            <Link href="/">Accueil</Link>
+            <Link href="/menu">Menu</Link>
+            <Link href="/login">Connexion</Link>
+          </nav>
+          <div className="md:hidden">
+            <MobileDrawer />
+          </div>
+        </header>
+        <QueryProvider>
+          <main className="flex-1 min-h-[80vh]">{children}</main>
+        </QueryProvider>
+        <footer className="w-full py-4 text-center text-xs text-gray-500 border-t bg-white/80">
+          &copy; {new Date().getFullYear()} Hen House. Tous droits réservés.
+        </footer>
+      </body>
+    </html>
+  );
+}

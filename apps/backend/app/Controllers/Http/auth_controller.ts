@@ -6,8 +6,20 @@ export default class AuthController {
   async register({ request, response }: HttpContext) {
     const payload = await request.validateUsing(registerValidator)
 
+    const existingUser = await User.findBy('username', payload.username)
+  
+  if (existingUser) {
+    return response.conflict({ 
+      message: 'Ce nom d\'utilisateur est déjà utilisé',
+      field: 'username'
+    })
+  }
+
     const user = await User.create(payload)
-    await user.load('entreprise')
+    
+    if(user.entrepriseId){
+      await user.load('entreprise')
+    }
 
     return response.created({
       message: 'Utilisateur créé avec succès',
@@ -21,16 +33,19 @@ export default class AuthController {
   }
 
   async login({ request, response, auth }: HttpContext) {
-    const { email, password } = await request.validateUsing(loginValidator)
+    const { username, password } = await request.validateUsing(loginValidator)
 
-    const user = await User.verifyCredentials(email, password)
+    const user = await User.verifyCredentials(username, password)
 
     if (!user.active) {
       return response.unauthorized({ message: 'Compte désactivé' })
     }
 
     await auth.use('web').login(user)
-    await user.load('entreprise')
+
+    if(user.entrepriseId) {
+      await user.load('entreprise')
+    }
 
     return response.ok({
       message: 'Connexion réussie',
