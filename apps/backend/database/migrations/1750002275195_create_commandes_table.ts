@@ -7,7 +7,9 @@ export default class extends BaseSchema {
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
       table.string('numero_commande').notNullable().unique()
-      table.enum('statut', ['en_attente', 'confirmee', 'en_preparation', 'prete', 'livree', 'annulee']).defaultTo('en_attente')
+      table
+        .enum('statut', ['en_attente', 'confirmee', 'en_preparation', 'prete', 'livree', 'annulee'])
+        .defaultTo('en_attente')
       table.decimal('total', 10, 2).notNullable()
       table.integer('user_id').unsigned().references('users.id').onDelete('CASCADE')
       table.integer('entreprise_id').unsigned().references('entreprises.id').onDelete('CASCADE')

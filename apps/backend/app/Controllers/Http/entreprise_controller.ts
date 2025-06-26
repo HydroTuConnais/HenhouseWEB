@@ -14,7 +14,7 @@ export default class EntrepriseController {
     }
 
     const entreprises = await Entreprise.query().orderBy('nom', 'asc')
-    
+
     return response.ok({ entreprises })
   }
 
@@ -24,7 +24,7 @@ export default class EntrepriseController {
   async show({ params, response, auth }: HttpContext) {
     try {
       const entreprise = await Entreprise.findOrFail(params.id)
-      
+
       if (auth.user!.role !== 'admin' && auth.user!.entrepriseId !== entreprise.id) {
         return response.forbidden({ message: 'Accès refusé' })
       }
@@ -55,7 +55,7 @@ export default class EntrepriseController {
 
     return response.created({
       message: 'Entreprise créée avec succès',
-      entreprise
+      entreprise,
     })
   }
 
@@ -70,13 +70,13 @@ export default class EntrepriseController {
 
       const entreprise = await Entreprise.findOrFail(params.id)
       const payload = await request.validateUsing(updateEntrepriseValidator)
-      
+
       entreprise.merge(payload)
       await entreprise.save()
 
       return response.ok({
         message: 'Entreprise mise à jour avec succès',
-        entreprise
+        entreprise,
       })
     } catch (error) {
       if (error.name === 'E_ROW_NOT_FOUND') {
@@ -96,15 +96,15 @@ export default class EntrepriseController {
       }
 
       const entreprise = await Entreprise.findOrFail(params.id)
-      
+
       // Vérifier si l'entreprise a des utilisateurs ou commandes
       const usersCount = await User.query()
         .where('entreprise_id', entreprise.id)
         .count('* as total')
-        
-      if (parseInt(usersCount[0].$extras.total) > 0) {
-        return response.badRequest({ 
-          message: 'Impossible de supprimer une entreprise avec des utilisateurs associés' 
+
+      if (Number.parseInt(usersCount[0].$extras.total) > 0) {
+        return response.badRequest({
+          message: 'Impossible de supprimer une entreprise avec des utilisateurs associés',
         })
       }
 
@@ -125,8 +125,11 @@ export default class EntrepriseController {
   async getMenus({ params, response, auth }: HttpContext) {
     try {
       const entrepriseId = params.id
-      
-      if (auth.user!.role !== 'admin' && auth.user!.entrepriseId !== parseInt(entrepriseId)) {
+
+      if (
+        auth.user!.role !== 'admin' &&
+        auth.user!.entrepriseId !== Number.parseInt(entrepriseId)
+      ) {
         return response.forbidden({ message: 'Accès refusé' })
       }
 
@@ -140,16 +143,13 @@ export default class EntrepriseController {
           query.where('entreprise_id', entrepriseId)
         })
         .where('active', true)
-        .preload('produits', (query) => {
-          query.where('active', true)
-        })
 
       return response.ok({ menus })
     } catch (error) {
       console.error('Erreur lors de la récupération des menus:', error)
       return response.internalServerError({
         message: 'Une erreur est survenue lors de la récupération des menus',
-        error: error.message
+        error: error.message,
       })
     }
   }
@@ -164,37 +164,103 @@ export default class EntrepriseController {
       }
 
       const entreprise = await Entreprise.findOrFail(params.id)
-      
+
       const { menuIds } = request.only(['menuIds'])
-      
+
       if (!menuIds || !Array.isArray(menuIds)) {
-        return response.badRequest({ message: 'menuIds doit être un tableau d\'identifiants' })
+        return response.badRequest({ message: "menuIds doit être un tableau d'identifiants" })
       }
 
       const existingMenus = await Menu.query().whereIn('id', menuIds).select('id')
-      const validMenuIds = existingMenus.map(menu => menu.id)
-      
+      const validMenuIds = existingMenus.map((menu) => menu.id)
+
       if (validMenuIds.length === 0) {
         return response.badRequest({ message: 'Aucun menu valide fourni' })
       }
-      
+
       await entreprise.related('menus').sync(validMenuIds)
-      
+
       await entreprise.load('menus')
-      
+
       return response.ok({
         message: 'Menus associés avec succès',
-        entreprise
+        entreprise,
       })
     } catch (error) {
       if (error.name === 'E_ROW_NOT_FOUND') {
         return response.notFound({ message: 'Entreprise non trouvée' })
       }
-      
-      console.error('Erreur lors de l\'association des menus:', error)
-      return response.internalServerError({ 
-        message: 'Une erreur est survenue lors de l\'association des menus',
-        error: error.message
+
+      console.error("Erreur lors de l'association des menus:", error)
+      return response.internalServerError({
+        message: "Une erreur est survenue lors de l'association des menus",
+        error: error.message,
+      })
+    }
+  }
+
+  async getProduits({ params, response }: HttpContext) {
+    try {
+      const entreprise = await Entreprise.findOrFail(params.id)
+      const produits = await entreprise.related('produits').query().where('active', true)
+
+      return response.ok(produits)
+    } catch (error) {
+      return response.badRequest({
+        message: 'Erreur lors de la récupération des produits',
+        error: error.message,
+      })
+    }
+  }
+
+  async associateProduits({ params, request, response }: HttpContext) {
+    try {
+      const entreprise = await Entreprise.findOrFail(params.id)
+      const { produitIds } = request.only(['produitIds'])
+
+      await entreprise.related('produits').sync(produitIds)
+
+      return response.ok({
+        message: 'Produits associés avec succès',
+      })
+    } catch (error) {
+      return response.badRequest({
+        message: "Erreur lors de l'association des produits",
+        error: error.message,
+      })
+    }
+  }
+
+  async getMenusAndProduits({ params, response }: HttpContext) {
+    try {
+      const entreprise = await Entreprise.query()
+        .where('id', params.id)
+        .preload('menus', (menuQuery) => {
+          menuQuery.where('active', true)
+        })
+        .preload('produits', (produitQuery) => {
+          produitQuery.where('active', true)
+        })
+        .firstOrFail()
+
+      return response.ok({
+        entreprise: {
+          id: entreprise.id,
+          nom: entreprise.nom,
+        },
+        menus: entreprise.menus.map((menu) => ({
+          ...menu.serialize(),
+          fullImageUrl: menu.fullImageUrl,
+        })),
+        produits: entreprise.produits.map((produit) => ({
+          ...produit.serialize(),
+          fullImageUrl: produit.fullImageUrl,
+        })),
+      })
+    } catch (error) {
+      return response.badRequest({
+        message: 'Erreur lors de la récupération des données',
+        error: error.message,
       })
     }
   }
@@ -205,8 +271,11 @@ export default class EntrepriseController {
   async getCommandes({ params, response, auth }: HttpContext) {
     try {
       const entrepriseId = params.id
-      
-      if (auth.user!.role !== 'admin' && auth.user!.entrepriseId !== parseInt(entrepriseId)) {
+
+      if (
+        auth.user!.role !== 'admin' &&
+        auth.user!.entrepriseId !== Number.parseInt(entrepriseId)
+      ) {
         return response.forbidden({ message: 'Accès refusé' })
       }
 
@@ -220,11 +289,11 @@ export default class EntrepriseController {
       if (error.name === 'E_ROW_NOT_FOUND') {
         return response.notFound({ message: 'Entreprise non trouvée' })
       }
-      
+
       console.error('Erreur lors de la récupération des commandes:', error)
       return response.internalServerError({
         message: 'Une erreur est survenue lors de la récupération des commandes',
-        error: error.message
+        error: error.message,
       })
     }
   }

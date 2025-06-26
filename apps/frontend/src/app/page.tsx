@@ -1,92 +1,95 @@
-import Image from "next/image";
-import Link from "next/link";
-// import { Button } from "@/components/ui/button";
+"use client";
 
-export default function Home() {
+import React, { useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { useLogin } from '@/components/stores/auth-store';
+
+export default function LoginPage() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const router = useRouter();
+
+  const loginMutation = useLogin();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loginMutation.mutate(
+      { username, password },
+      {
+        onSuccess: (data) => {
+          toast.success('Connexion réussie !', {
+            description: `Bienvenue, ${data.user?.username || "utilisateur"}!`,
+          });
+          router.push('/menu');
+        },
+        onError: (error) => {
+          toast.error('Échec de la connexion', {
+            description: (error as Error)?.message || "Veuillez vérifier vos identifiants",
+          });
+        }
+      }
+    );
+  };
+
+  useEffect(() => {
+    loginMutation.reset();
+  }, [username, password]);
+
   return (
-    <div className="flex flex-col font-[family-name:var(--font-geist-sans)] min-h-0 flex-1">
-      <main className="flex flex-col gap-[32px] items-center flex-1 p-8 pb-24 sm:p-20 justify-center">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-center mt-8">
-          <Link href="/login">
-            <button className="w-48 bg-blue-600 text-white rounded p-2">
-              Se connecter
-            </button>
-          </Link>
-          <Link href="/menu">
-            <button className="w-48 bg-gray-300 text-black rounded p-2">
-              Voir les menus
-            </button>
-          </Link>
+    <div className="flex flex-col min-h-screen md:flex-row">
+      {/* Colonne gauche : Formulaire */}
+      <div className="flex md:flex-[0.4] flex-col justify-center items-center px-4 py-12 md:px-16 bg-white w-full min-h-[85vh] md:min-h-0">
+        <div className="w-full max-w-md mx-auto">
+          <h1 className="text-3xl md:text-4xl font-extrabold text-[#9C6B3B] mb-3 text-center md:text-left">Bienvenue sur Hen House</h1>
+          <p className="text-[#704214] mb-8 text-lg text-center md:text-left">Commandez simplement, gérez facilement.</p>
+          <div className="p-6 md:p-8 shadow-xl border border-[#E5C9B6] rounded-xl bg-white">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4" autoComplete="off">
+              <div>
+                <label className="block text-sm font-medium mb-1" htmlFor="username">Nom d'utilisateur</label>
+                <Input
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="Entrer votre nom d'utilisateur"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" htmlFor="password">Mot de passe</label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="Mot de passe"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full mt-2 bg-[#9C6B3B] hover:bg-[#704214]"
+                disabled={loginMutation.isPending}
+              >
+                {loginMutation.isPending ? "Connexion..." : "Se connecter"}
+              </Button>
+            </form>
+          </div>
         </div>
-      </main>
-      <footer className="bottom-0 left-0 w-full flex gap-[24px] flex-wrap items-center justify-center py-4 text-xs text-gray-500 border-t bg-white/80 z-50">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+      {/* Colonne droite : Image */}
+      <div className="hidden md:flex md:flex-[0.6] items-center justify-center">
+        <img
+          src="/login-side.png"
+          alt="Illustration Hen House"
+          className="object-cover rounded-xl shadow-2xl w-full mr-12 max-w-none max-h-none"
+        />
+      </div>
     </div>
   );
 }

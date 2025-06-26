@@ -4,6 +4,7 @@ import User from './user.js'
 import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 import Menu from './menu.js'
 import Commande from './commande.js'
+import Produit from './produit.js'
 
 export default class Entreprise extends BaseModel {
   @column({ isPrimary: true })
@@ -27,6 +28,11 @@ export default class Entreprise extends BaseModel {
     pivotTable: 'entreprise_menus',
   })
   declare menus: ManyToMany<typeof Menu>
+
+  @manyToMany(() => Produit, {
+    pivotTable: 'entreprise_produits',
+  })
+  declare produits: ManyToMany<typeof Produit>
 
   @hasMany(() => Commande)
   declare commandes: HasMany<typeof Commande>

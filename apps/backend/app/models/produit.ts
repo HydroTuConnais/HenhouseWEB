@@ -1,8 +1,7 @@
-// app/Models/Produit.ts
-import { BaseModel, belongsTo, column, manyToMany } from '@adonisjs/lucid/orm'
-import type { BelongsTo, ManyToMany } from '@adonisjs/lucid/types/relations'
+import { BaseModel, column, manyToMany } from '@adonisjs/lucid/orm'
+import type { ManyToMany } from '@adonisjs/lucid/types/relations'
 import { DateTime } from 'luxon'
-import Menu from './menu.js'
+import Entreprise from './entreprise.js'
 import Commande from './commande.js'
 
 export default class Produit extends BaseModel {
@@ -19,7 +18,7 @@ export default class Produit extends BaseModel {
   declare prix: number
 
   @column()
-  declare menuId: number
+  declare categorie: string // plat, boisson, dessert, accompagnement
 
   @column()
   declare active: boolean
@@ -37,8 +36,10 @@ export default class Produit extends BaseModel {
   declare updatedAt: DateTime
 
   // Relations
-  @belongsTo(() => Menu)
-  declare menu: BelongsTo<typeof Menu>
+  @manyToMany(() => Entreprise, {
+    pivotTable: 'entreprise_produits',
+  })
+  declare entreprises: ManyToMany<typeof Entreprise>
 
   @manyToMany(() => Commande, {
     pivotTable: 'commande_produits',

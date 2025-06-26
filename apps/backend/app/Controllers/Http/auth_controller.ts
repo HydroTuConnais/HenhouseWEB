@@ -64,13 +64,16 @@ export default class AuthController {
   }
 
   async me({ auth, response }: HttpContext) {
-    await auth.user!.load('entreprise')
+    if (auth.user.entrepriseId) {
+      await auth.user!.load('entreprise')
+    }
+
     return response.ok({
       user: {
         id: auth.user!.id,
         username: auth.user!.username,
         role: auth.user!.role,
-        entreprise: auth.user!.entreprise,
+        entreprise: auth.user?.entreprise,
       },
     })
   }

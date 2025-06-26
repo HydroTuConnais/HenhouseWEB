@@ -1,230 +1,240 @@
 // app/controllers/produits_controller.ts
 import type { HttpContext } from '@adonisjs/core/http'
 import Produit from '#models/produit'
-import ImageService from '#services/image_service'
 import { createProduitValidator, updateProduitValidator } from '#validators/produit'
+import app from '@adonisjs/core/services/app'
+import { cuid } from '@adonisjs/core/helpers'
+import fs from 'node:fs/promises'
 
 export default class ProduitsController {
-  /**
-   * Affiche tous les produits
-   */
-  async index({ auth, request, response }: HttpContext) {
-    const user = auth.user!
-    const { menuId } = request.qs()
-
-    let query = Produit.query().preload('menu')
-
-    if (user.role !== 'admin') {
-      // Filtrer par entreprise pour les utilisateurs non-admin
-      query = query.whereHas('menu', (menuQuery) => {
-        menuQuery.whereHas('entreprises', (entQuery) => {
-          entQuery.where('entreprise_id', user.entrepriseId!)
-        })
-      })
-    }
-
-    if (menuId) {
-      query = query.where('menu_id', menuId)
-    }
-
-    query = query.where('active', true)
-
-    const produits = await query.exec()
-
-    const produitsWithImages = produits.map((produit) => ({
-      ...produit.toJSON(),
-      fullImageUrl: produit.fullImageUrl,
-    }))
-
-    return response.ok({ produits: produitsWithImages })
-  }
-
-  /**
-   * Affiche un produit spécifique
-   */
-  async show({ params, auth, response }: HttpContext) {
-    const user = auth.user!
-    const produitId = params.id
-
-    let query = Produit.query().where('id', produitId).preload('menu')
-
-    if (user.role !== 'admin') {
-      query = query.whereHas('menu', (menuQuery) => {
-        menuQuery.whereHas('entreprises', (entQuery) => {
-          entQuery.where('entreprise_id', user.entrepriseId!)
-        })
-      })
-    }
-
-    const produit = await query.first()
-
-    if (!produit) {
-      return response.notFound({ message: 'Produit non trouvé' })
-    }
-
-    return response.ok({
-      produit: {
-        ...produit.toJSON(),
-        fullImageUrl: produit.fullImageUrl,
-      },
-    })
-  }
-
-  /**
-   * Crée un nouveau produit
-   */
-  async store({ request, response, auth }: HttpContext) {
-    if (auth.user!.role !== 'admin') {
-      return response.forbidden({ message: 'Accès refusé' })
-    }
-
-    const payload = await request.validateUsing(createProduitValidator)
-    const produit = await Produit.create(payload)
-
-    // Gestion de l'image
-    const image = request.file('image')
-    if (image) {
-      try {
-        const uploadResult = await ImageService.uploadImage(image, 'produits', {
-          width: 800,
-          height: 600,
-          quality: 85,
-          format: 'webp',
-        })
-
-        produit.imageUrl = uploadResult.filename
-        produit.imagePath = uploadResult.path
-        await produit.save()
-      } catch (error) {
-        await produit.delete()
-        return response.badRequest({ error: error.message })
-      }
-    }
-
-    return response.created({
-      message: 'Produit créé avec succès',
-      produit: {
-        ...produit.toJSON(),
-        fullImageUrl: produit.fullImageUrl,
-      },
-    })
-  }
-
-  /**
-   * Met à jour un produit
-   */
-  async update({ params, request, response, auth }: HttpContext) {
-    if (auth.user!.role !== 'admin') {
-      return response.forbidden({ message: 'Accès refusé' })
-    }
-
-    const produit = await Produit.findOrFail(params.id)
-    const payload = await request.validateUsing(updateProduitValidator)
-
-    const oldImagePath = produit.imagePath
-
-    produit.merge(payload)
-
-    // Gestion de la nouvelle image
-    const image = request.file('image')
-    if (image) {
-      try {
-        const uploadResult = await ImageService.uploadImage(image, 'produits', {
-          width: 800,
-          height: 600,
-          quality: 85,
-          format: 'webp',
-        })
-
-        produit.imageUrl = uploadResult.filename
-        produit.imagePath = uploadResult.path
-
-        // Supprimer l'ancienne image
-        if (oldImagePath) {
-          await ImageService.deleteImage(produit.imageUrl!)
-        }
-      } catch (error) {
-        return response.badRequest({ error: error.message })
-      }
-    }
-
-    await produit.save()
-
-    return response.ok({
-      message: 'Produit mis à jour avec succès',
-      produit: {
-        ...produit.toJSON(),
-        fullImageUrl: produit.fullImageUrl,
-      },
-    })
-  }
-
-  /**
-   * Supprime un produit
-   */
-  async destroy({ params, response, auth }: HttpContext) {
-    if (auth.user!.role !== 'admin') {
-      return response.forbidden({ message: 'Accès refusé' })
-    }
-
-    const produit = await Produit.findOrFail(params.id)
-
-    // Supprimer l'image associée
-    if (produit.imageUrl) {
-      await ImageService.deleteImage(produit.imageUrl)
-    }
-
-    produit.active = false
-    await produit.save()
-
-    return response.ok({ message: 'Produit supprimé avec succès' })
-  }
-
-  /**
-   * Upload d'image pour un produit existant
-   */
-  async uploadImage({ params, request, response, auth }: HttpContext) {
-    if (auth.user!.role !== 'admin') {
-      return response.forbidden({ message: 'Accès refusé' })
-    }
-
-    const produit = await Produit.find(params.id)
-  
-    if (!produit) {
-      return response.notFound({ message: 'Produit non trouvé' })
-    }
-    
-    const image = request.file('image')
-
-    if (!image) {
-      return response.badRequest({ error: 'Aucune image fournie' })
-    }
-
+  async index({ request, response }: HttpContext) {
     try {
-      if (produit.imageUrl) {
-        await ImageService.deleteImage(produit.imageUrl)
+      const categorie = request.input('categorie')
+      const entrepriseId = request.input('entreprise_id')
+
+      let query = Produit.query().where('active', true)
+
+      if (categorie) {
+        query = query.where('categorie', categorie)
       }
 
-      const uploadResult = await ImageService.uploadImage(image, 'produits', {
-        width: 800,
-        height: 600,
-        quality: 85,
-        format: 'webp',
+      if (entrepriseId) {
+        query = query.whereHas('entreprises', (entrepriseQuery) => {
+          entrepriseQuery.where('entreprises.id', entrepriseId)
+        })
+      }
+
+      const produits = await query.exec()
+
+      // Ajouter fullImageUrl à chaque produit
+      const produitsWithImages = produits.map((produit: any) => ({
+        ...produit.toJSON(),
+        fullImageUrl: produit.imageUrl
+          ? produit.imageUrl.startsWith('http')
+            ? produit.imageUrl
+            : `/uploads/produits/${produit.imageUrl}`
+          : null,
+      }))
+
+      return response.ok(produitsWithImages)
+    } catch (error) {
+      return response.badRequest({
+        message: 'Erreur lors de la récupération des produits',
+        error: error.message,
+      })
+    }
+  }
+
+  async show({ params, response }: HttpContext) {
+    try {
+      const produit = await Produit.query()
+        .where('id', params.id)
+        .preload('entreprises')
+        .firstOrFail()
+
+      return response.ok({
+        ...produit.serialize(),
+        fullImageUrl: produit.fullImageUrl,
+      })
+    } catch (error) {
+      return response.notFound({
+        message: 'Produit non trouvé',
+      })
+    }
+  }
+
+  async store({ request, response }: HttpContext) {
+    try {
+      const payload = await request.validateUsing(createProduitValidator)
+      const { entrepriseIds, ...produitData } = payload
+
+      if (produitData.active === undefined) {
+        produitData.active = true
+      }
+
+      const produit = await Produit.create(produitData)
+
+      if (entrepriseIds && entrepriseIds.length > 0) {
+        await produit.related('entreprises').attach(entrepriseIds)
+      }
+
+      await produit.load('entreprises')
+
+      return response.created({
+        message: 'Produit créé avec succès',
+        produit: {
+          ...produit.serialize(),
+          fullImageUrl: produit.fullImageUrl,
+        },
+      })
+    } catch (error) {
+      return response.badRequest({
+        message: 'Erreur lors de la création du produit',
+        error: error.message,
+      })
+    }
+  }
+
+  async uploadImage({ params, request, response }: HttpContext) {
+    try {
+      const produit = await Produit.findOrFail(params.id)
+      const image = request.file('image', {
+        size: '5mb',
+        extnames: ['jpg', 'jpeg', 'png', 'webp'],
       })
 
-      produit.imageUrl = uploadResult.filename
-      produit.imagePath = uploadResult.path
+      if (!image || !image.isValid) {
+        return response.badRequest({
+          message: 'Image invalide',
+          errors: image?.errors,
+        })
+      }
+
+      const uploadsDir = app.makePath('public/uploads/produits')
+      await fs.mkdir(uploadsDir, { recursive: true })
+
+      if (produit.imageUrl) {
+        try {
+          await fs.unlink(app.makePath('public/uploads/produits', produit.imageUrl))
+        } catch (error) {
+          // L'image n'existe pas, pas grave
+        }
+      }
+
+      const fileName = `${cuid()}.${image.extname}`
+      const imagePath = `uploads/produits/${fileName}`
+
+      await image.move(uploadsDir, {
+        name: fileName,
+      })
+
+      produit.imageUrl = fileName
+      produit.imagePath = imagePath
       await produit.save()
 
       return response.ok({
         message: 'Image uploadée avec succès',
         produit: {
-          ...produit.toJSON(),
+          ...produit.serialize(),
           fullImageUrl: produit.fullImageUrl,
         },
       })
     } catch (error) {
-      return response.badRequest({ error: error.message })
+      return response.badRequest({
+        message: "Erreur lors de l'upload de l'image",
+        error: error.message,
+      })
+    }
+  }
+
+  async update({ params, request, response }: HttpContext) {
+    try {
+      const produit = await Produit.findOrFail(params.id)
+      const payload = await request.validateUsing(updateProduitValidator)
+      const { entrepriseIds, ...produitData } = payload
+
+      produit.merge(produitData)
+      await produit.save()
+
+      if (entrepriseIds) {
+        await produit.related('entreprises').sync(entrepriseIds)
+      }
+
+      await produit.load('entreprises')
+
+      return response.ok({
+        message: 'Produit mis à jour avec succès',
+        produit: {
+          ...produit.serialize(),
+          fullImageUrl: produit.fullImageUrl,
+        },
+      })
+    } catch (error) {
+      return response.badRequest({
+        message: 'Erreur lors de la mise à jour du produit',
+        error: error.message,
+      })
+    }
+  }
+
+  async destroy({ params, response }: HttpContext) {
+    try {
+      const produit = await Produit.findOrFail(params.id)
+
+      if (produit.imageUrl) {
+        try {
+          await fs.unlink(app.makePath('public/uploads/produits', produit.imageUrl))
+        } catch (error) {
+          // L'image n'existe pas, pas grave
+        }
+      }
+
+      await produit.related('entreprises').detach()
+      await produit.delete()
+
+      return response.ok({
+        message: 'Produit supprimé avec succès',
+      })
+    } catch (error) {
+      return response.badRequest({
+        message: 'Erreur lors de la suppression du produit',
+        error: error.message,
+      })
+    }
+  }
+
+  async getEntreprises({ params, response }: HttpContext) {
+    try {
+      const produit = await Produit.findOrFail(params.id)
+      await produit.load('entreprises')
+
+      return response.ok({
+        produit: produit.serialize(),
+        entreprises: produit.entreprises,
+      })
+    } catch (error) {
+      return response.badRequest({
+        message: 'Erreur lors de la récupération des entreprises',
+        error: error.message,
+      })
+    }
+  }
+
+  async associateEntreprises({ params, request, response }: HttpContext) {
+    try {
+      const produit = await Produit.findOrFail(params.id)
+      const { entrepriseIds } = request.only(['entrepriseIds'])
+
+      await produit.related('entreprises').sync(entrepriseIds)
+
+      return response.ok({
+        message: 'Produit associé aux entreprises avec succès',
+      })
+    } catch (error) {
+      return response.badRequest({
+        message: "Erreur lors de l'association",
+        error: error.message,
+      })
     }
   }
 }
