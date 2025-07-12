@@ -6,11 +6,17 @@ import { createEntrepriseValidator, updateEntrepriseValidator } from '#validator
 
 export default class EntrepriseController {
   /**
-   * Liste toutes les entreprises
+   * Liste toutes les entreprises (ADMIN UNIQUEMENT)
    */
   async index({ response, auth }: HttpContext) {
-    if (auth.user!.role !== 'admin') {
-      return response.forbidden({ message: 'Accès refusé' })
+    // Vérification d'authentification obligatoire
+    if (!auth.user) {
+      return response.unauthorized({ message: 'Authentification requise' })
+    }
+
+    // Seuls les admins peuvent voir la liste des entreprises
+    if (auth.user.role !== 'admin') {
+      return response.forbidden({ message: 'Accès refusé. Administrateur requis.' })
     }
 
     const entreprises = await Entreprise.query().orderBy('nom', 'asc')
@@ -19,19 +25,45 @@ export default class EntrepriseController {
   }
 
   /**
-   * Récupère une entreprise spécifique avec ses relations
+   * Récupère une entreprise spécifique avec ses relations (PROTÉGÉ)
    */
   async show({ params, response, auth }: HttpContext) {
     try {
+      // Vérification d'authentification obligatoire
+      if (!auth.user) {
+        return response.unauthorized({ message: 'Authentification requise' })
+      }
+
       const entreprise = await Entreprise.findOrFail(params.id)
 
-      if (auth.user!.role !== 'admin' && auth.user!.entrepriseId !== entreprise.id) {
+      // Vérification d'accès : admin ou entreprise propriétaire
+      if (auth.user.role !== 'admin' && auth.user.entrepriseId !== entreprise.id) {
         return response.forbidden({ message: 'Accès refusé' })
       }
 
       await entreprise.load('menus')
+      await entreprise.load('produits')
       await entreprise.load('users')
       await entreprise.load('commandes')
+
+      return response.ok({ entreprise })
+    } catch (error) {
+      if (error.name === 'E_ROW_NOT_FOUND') {
+        return response.notFound({ message: 'Entreprise non trouvée' })
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Récupère les informations publiques d'une entreprise (sans menus/produits)
+   */
+  async showPublic({ params, response }: HttpContext) {
+    try {
+      const entreprise = await Entreprise.query()
+        .where('id', params.id)
+        .select('id', 'nom', 'created_at', 'updated_at')
+        .firstOrFail()
 
       return response.ok({ entreprise })
     } catch (error) {
@@ -120,15 +152,21 @@ export default class EntrepriseController {
   }
 
   /**
-   * Récupère les menus associés à l'entreprise
+   * Récupère les menus associés à l'entreprise (PROTÉGÉ)
    */
   async getMenus({ params, response, auth }: HttpContext) {
     try {
       const entrepriseId = params.id
 
+      // Vérification d'authentification obligatoire
+      if (!auth.user) {
+        return response.unauthorized({ message: 'Authentification requise pour accéder aux menus' })
+      }
+
+      // Vérification d'accès : admin ou entreprise propriétaire
       if (
-        auth.user!.role !== 'admin' &&
-        auth.user!.entrepriseId !== Number.parseInt(entrepriseId)
+        auth.user.role !== 'admin' &&
+        auth.user.entrepriseId !== Number.parseInt(entrepriseId)
       ) {
         return response.forbidden({ message: 'Accès refusé' })
       }
@@ -199,12 +237,23 @@ export default class EntrepriseController {
     }
   }
 
-  async getProduits({ params, response }: HttpContext) {
+  async getProduits({ params, response, auth }: HttpContext) {
     try {
+      // Vérification d'authentification obligatoire
+      if (!auth.user) {
+        return response.unauthorized({ message: 'Authentification requise pour accéder aux produits' })
+      }
+
       const entreprise = await Entreprise.findOrFail(params.id)
+      
+      // Vérification d'accès : admin ou entreprise propriétaire
+      if (auth.user.role !== 'admin' && auth.user.entrepriseId !== entreprise.id) {
+        return response.forbidden({ message: 'Accès refusé' })
+      }
+
       const produits = await entreprise.related('produits').query().where('active', true)
 
-      return response.ok(produits)
+      return response.ok({ produits })
     } catch (error) {
       return response.badRequest({
         message: 'Erreur lors de la récupération des produits',
@@ -231,8 +280,18 @@ export default class EntrepriseController {
     }
   }
 
-  async getMenusAndProduits({ params, response }: HttpContext) {
+  async getMenusAndProduits({ params, response, auth }: HttpContext) {
     try {
+      // Vérification d'authentification obligatoire
+      if (!auth.user) {
+        return response.unauthorized({ message: 'Authentification requise pour accéder au catalogue' })
+      }
+
+      // Vérification d'accès : admin ou entreprise propriétaire
+      if (auth.user.role !== 'admin' && auth.user.entrepriseId !== Number.parseInt(params.id)) {
+        return response.forbidden({ message: 'Accès refusé' })
+      }
+
       const entreprise = await Entreprise.query()
         .where('id', params.id)
         .preload('menus', (menuQuery) => {

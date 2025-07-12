@@ -237,4 +237,62 @@ export default class ProduitsController {
       })
     }
   }
+
+  /**
+   * Liste des produits publics (non liés à des entreprises)
+   */
+  async indexPublic({ request, response }: HttpContext) {
+    try {
+      const categorie = request.input('categorie')
+
+      let query = Produit.query()
+        .where('active', true)
+        .whereDoesntHave('entreprises', () => {}) // Produits sans entreprises associées
+
+      if (categorie) {
+        query = query.where('categorie', categorie)
+      }
+
+      const produits = await query.orderBy('nom', 'asc').exec()
+
+      // Ajouter fullImageUrl à chaque produit
+      const produitsWithImages = produits.map((produit: any) => ({
+        ...produit.serialize(),
+        fullImageUrl: produit.fullImageUrl,
+      }))
+
+      return response.ok({ produits: produitsWithImages })
+    } catch (error) {
+      console.error('Erreur lors de la récupération des produits publics:', error)
+      return response.internalServerError({
+        message: 'Une erreur est survenue lors de la récupération des produits',
+        error: error.message,
+      })
+    }
+  }
+
+  /**
+   * Affiche un produit public (non lié à une entreprise)
+   */
+  async showPublic({ params, response }: HttpContext) {
+    try {
+      const produit = await Produit.query()
+        .where('id', params.id)
+        .where('active', true)
+        .whereDoesntHave('entreprises', () => {}) // Vérifier qu'il n'est lié à aucune entreprise
+        .firstOrFail()
+
+      return response.ok({ 
+        produit: {
+          ...produit.serialize(),
+          fullImageUrl: produit.fullImageUrl,
+        }
+      })
+    } catch (error) {
+      if (error.name === 'E_ROW_NOT_FOUND') {
+        return response.notFound({ message: 'Produit public non trouvé' })
+      }
+      throw error
+    }
+  }
 }

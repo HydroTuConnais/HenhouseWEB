@@ -23,7 +23,7 @@ export default function LoginPage() {
           toast.success('Connexion réussie !', {
             description: `Bienvenue, ${data.user?.username || "utilisateur"}!`,
           });
-          router.push('/menu');
+          router.push('/dashboard');
         },
         onError: (error) => {
           toast.error('Échec de la connexion', {

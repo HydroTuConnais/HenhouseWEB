@@ -9,7 +9,7 @@ export default class extends BaseSchema {
       table.string('username').notNullable().unique()
       table.string('password').notNullable()
       table.enum('role', ['entreprise', 'admin']).notNullable()
-      table.integer('entreprise_id').unsigned().references('entreprises.id').onDelete('CASCADE')
+      table.integer('entreprise_id').unsigned().references('entreprises.id').onDelete('CASCADE').nullable()
       table.boolean('active').defaultTo(true)
       table.timestamp('created_at')
       table.timestamp('updated_at')

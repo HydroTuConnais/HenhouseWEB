@@ -24,6 +24,15 @@ export default class Commande extends BaseModel {
   @column()
   declare entrepriseId: number
 
+  @column()
+  declare telephoneLivraison: string | null
+
+  @column()
+  declare creneauxLivraison: any | null // JSON des créneaux
+
+  @column()
+  declare notesCommande: string | null
+
   @column.dateTime()
   declare dateLivraison: DateTime
 

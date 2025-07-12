@@ -1,6 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'
+import { API_BASE_URL } from './config'
 
 // Configuration du client
 export const queryClient = new QueryClient({
@@ -21,11 +20,18 @@ export const queryClient = new QueryClient({
 
 // Wrapper fetch avec credentials pour AdonisJS
 export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
+  const headers: Record<string, string> = {}
+  
+  // Ne pas ajouter Content-Type si c'est FormData (pour les uploads)
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json'
+  }
+
   const config: RequestInit = {
     ...options,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...headers,
       ...options.headers,
     },
   }

@@ -14,9 +14,10 @@ import { ShoppingCart, Plus, Minus, X, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/hooks/use-cart";
-import { useMenus, useProduits, type Product, type Menu } from "@/components/hooks/api-hooks";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333';
+import { useMenus, useProduits, usePublicMenus, usePublicProduits, type Product, type Menu } from "@/components/hooks/api-hooks";
+import { useIsAuthenticated, useEntrepriseId } from "@/components/stores/auth-store";
+import { getImageUrl, IMAGE_BASE_URL } from "@/lib/config";
+import Link from "next/link";
 
 // Fonction utilitaire pour formater le prix de manière sécurisée
 const formatPrice = (prix: any): string => {
@@ -47,7 +48,7 @@ const ProductCard = ({
       // Déterminer le dossier selon le type
       const folder = type === 'menu' ? 'menus' : 'produits';
       // Construire l'URL complète
-      return `${API_BASE_URL}/uploads/${folder}/${item.imageUrl}`;
+      return `${IMAGE_BASE_URL}/uploads/${folder}/${item.imageUrl}`;
     }
     return "/placeholder-food.jpg";
   };
@@ -68,7 +69,7 @@ const ProductCard = ({
         <h3 className="font-semibold text-lg">{item.nom}</h3>
         <p className="text-sm text-gray-600 mt-1">{item.description}</p>
         <div className="flex items-center justify-between mt-3">
-          <span className="font-bold text-lg text-orange-600">{formatPrice(item.prix)}€</span>
+          <span className="font-bold text-lg text-orange-600">{formatPrice(item.prix)}$</span>
           <Button 
             size="sm" 
             onClick={() => onAddToCart({
@@ -109,7 +110,7 @@ const CartModal = () => {
     // Déterminer le dossier selon le type
     const folder = itemType === 'menu' ? 'menus' : 'produits';
     // Si c'est juste un nom de fichier, construire l'URL complète
-    return `${API_BASE_URL}/uploads/${folder}/${imageUrl}`;
+    return `${IMAGE_BASE_URL}/uploads/${folder}/${imageUrl}`;
   };
   
   return (
@@ -139,7 +140,7 @@ const CartModal = () => {
                   </div>
                   <div>
                     <p className="font-medium">{item.nom}</p>
-                    <p className="text-sm text-gray-500">{formatPrice(item.prix)}€</p>
+                    <p className="text-sm text-gray-500">{formatPrice(item.prix)}$</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -175,7 +176,7 @@ const CartModal = () => {
             <div className="border-t pt-4 mt-4">
               <div className="flex justify-between text-lg font-semibold">
                 <span>Total:</span>
-                <span className="text-orange-600">{formatPrice(cart.total)}€</span>
+                <span className="text-orange-600">{formatPrice(cart.total)}$</span>
               </div>
             </div>
           </div>
@@ -194,7 +195,7 @@ const CartModal = () => {
             disabled={cart.items.length === 0}
             className="sm:flex-1 bg-orange-500 hover:bg-orange-600"
           >
-            Commander ({formatPrice(cart.total)}€)
+            Commander ({formatPrice(cart.total)}$)
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -204,8 +205,15 @@ const CartModal = () => {
 
 export default function MenuPage() {
   const cart = useCart();
+  const { isAuthenticated, user } = useIsAuthenticated();
+  const entrepriseId = useEntrepriseId();
+  
   const { data: menus = [], isLoading: menusLoading } = useMenus();
   const { data: produits = [], isLoading: produitsLoading } = useProduits();
+  
+  // Pour le debug, récupérons aussi les données publiques séparément
+  const { data: publicMenus = [] } = usePublicMenus();
+  const { data: publicProduits = [] } = usePublicProduits();
 
   const activeMenus = menus.filter((m: Menu) => m.active);
   const isLoading = menusLoading || produitsLoading;
@@ -241,7 +249,32 @@ export default function MenuPage() {
 
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">Notre carte</h1>
-        <p className="text-gray-600">Découvrez nos délicieux menus et produits</p>
+        {isAuthenticated && user ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600">
+                  Connecté en tant que <strong>{user.username}</strong> ({user.role})
+                  {entrepriseId && ` - Entreprise ID: ${entrepriseId}`}
+                </p>
+                <p className="text-sm text-blue-600">
+                  Vous voyez {publicMenus.length} menus publics + {activeMenus.length - publicMenus.length} menus d'entreprise
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-600">Découvrez nos menus et produits disponibles publiquement</p>
+        )}
+        
+        {/* Debug info */}
+        <div className="mt-4 p-3 bg-gray-50 rounded text-xs text-gray-600">
+          <strong>Debug:</strong> 
+          Menus publics: {publicMenus.length} | 
+          Menus totaux: {activeMenus.length} | 
+          Produits publics: {publicProduits.length} | 
+          Produits totaux: {produits.filter((p: Product) => p.active).length}
+        </div>
       </div>
 
       <Tabs defaultValue="menus" className="w-full">
@@ -255,29 +288,55 @@ export default function MenuPage() {
         </TabsList>
         
         <TabsContent value="menus" className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activeMenus.map((menu: Menu) => (
-              <ProductCard 
-                key={menu.id} 
-                item={menu} 
-                type="menu" 
-                onAddToCart={cart.addItem} 
-              />
-            ))}
-          </div>
+          {activeMenus.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {activeMenus.map((menu: Menu) => (
+                <ProductCard 
+                  key={menu.id} 
+                  item={menu} 
+                  type="menu" 
+                  onAddToCart={cart.addItem} 
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <ShoppingCart className="h-16 w-16 mx-auto mb-4" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucun menu public disponible</h3>
+              <p className="text-gray-500">
+                Tous les menus sont actuellement liés à des entreprises spécifiques.<br />
+                Connectez-vous pour accéder aux menus d'entreprises.
+              </p>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="produits">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {produits.filter((p: Product) => p.active).map((produit: Product) => (
-              <ProductCard 
-                key={produit.id} 
-                item={produit} 
-                type="produit" 
-                onAddToCart={cart.addItem}
-              />
-            ))}
-          </div>
+          {produits.filter((p: Product) => p.active).length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {produits.filter((p: Product) => p.active).map((produit: Product) => (
+                <ProductCard 
+                  key={produit.id} 
+                  item={produit} 
+                  type="produit" 
+                  onAddToCart={cart.addItem}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <ShoppingCart className="h-16 w-16 mx-auto mb-4" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucun produit public disponible</h3>
+              <p className="text-gray-500">
+                Tous les produits sont actuellement liés à des entreprises spécifiques.<br />
+                Connectez-vous pour accéder aux produits d'entreprises.
+              </p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </main>

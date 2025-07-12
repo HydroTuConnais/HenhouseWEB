@@ -5,11 +5,43 @@ import "./globals.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { queryClient } from "@/lib/query-client";
-import { X } from "lucide-react";
+import { X, Shield } from "lucide-react";
 import { Toaster } from "sonner";
+import { useIsAuthenticated } from "@/components/stores/auth-store";
+
+function DesktopNav() {
+  const { isAuthenticated, user } = useIsAuthenticated();
+  
+  return (
+    <nav className="hidden md:flex gap-6 items-center">
+      <Link href="/" className="hover:text-orange-600 transition-colors">
+        Accueil
+      </Link>
+      <Link href="/menu" className="hover:text-orange-600 transition-colors">
+        Menu
+      </Link>
+      {isAuthenticated && (
+        <Link href="/dashboard" className="hover:text-orange-600 transition-colors">
+          Dashboard
+        </Link>
+      )}
+      {isAuthenticated && user?.role === 'admin' && (
+        <Link 
+          href="/admin" 
+          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+        >
+          <Shield size={16} />
+          Dashboard Admin
+        </Link>
+      )}
+    </nav>
+  );
+}
 
 function MobileDrawer() {
   const [open, setOpen] = useState(false);
+  const { isAuthenticated, user } = useIsAuthenticated();
+  
   return (
     <>
       <button
@@ -63,6 +95,25 @@ function MobileDrawer() {
             >
               Menu
             </Link>
+            {isAuthenticated && (
+              <Link
+                href="/dashboard"
+                className="hover:underline text-2xl font-semibold text-white"
+                onClick={() => setOpen(false)}
+              >
+                Dashboard
+              </Link>
+            )}
+            {isAuthenticated && user?.role === 'admin' && (
+              <Link
+                href="/admin"
+                className="hover:underline text-2xl font-semibold text-orange-300 flex items-center gap-2"
+                onClick={() => setOpen(false)}
+              >
+                <Shield size={24} />
+                Dashboard Admin
+              </Link>
+            )}
           </nav>
         </div>
       )}
@@ -78,19 +129,16 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body className="text-foreground min-h-screen flex flex-col bg-background">
-        <header className="w-full flex items-center justify-between px-4 py-3 border-b bg-white/80 sticky top-0 z-50">
-          <div className="font-bold text-xl tracking-tight">
-            <Link href="/"> Hen House</Link>
-          </div>
-          <nav className="hidden md:flex gap-6">
-            <Link href="/">Accueil</Link>
-            <Link href="/menu">Menu</Link>
-          </nav>
-          <div className="md:hidden">
-            <MobileDrawer />
-          </div>
-        </header>
         <QueryClientProvider client={queryClient}>
+          <header className="w-full flex items-center justify-between px-4 py-3 border-b bg-white/80 sticky top-0 z-50">
+            <div className="font-bold text-xl tracking-tight">
+              <Link href="/"> Hen House</Link>
+            </div>
+            <DesktopNav />
+            <div className="md:hidden">
+              <MobileDrawer />
+            </div>
+          </header>
           <main className="flex-1 flex flex-col">
             {children}
             <Toaster
@@ -100,11 +148,11 @@ export default function RootLayout({
               duration={5000}
             />
           </main>
+          <footer className="w-full py-4 text-center text-xs text-gray-500 border-t bg-white/80">
+            &copy; {new Date().getFullYear()} Hen House. Tous droits réservés.
+          </footer>
           <ReactQueryDevtools initialIsOpen={false} />
         </QueryClientProvider>
-        <footer className="w-full py-4 text-center text-xs text-gray-500 border-t bg-white/80">
-          &copy; {new Date().getFullYear()} Hen House. Tous droits réservés.
-        </footer>
       </body>
     </html>
   );
