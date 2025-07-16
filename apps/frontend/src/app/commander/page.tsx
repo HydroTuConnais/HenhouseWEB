@@ -7,16 +7,12 @@ import {
   ShoppingCart, 
   Plus, 
   Minus, 
-  MapPin, 
   Phone, 
   Clock, 
   ChefHat,
   Package,
-  Euro,
-  Calendar,
   MessageSquare,
-  CheckCircle,
-  AlertCircle
+  CheckCircle
 } from 'lucide-react'
 import {
   useCreatePublicCommande,
@@ -25,12 +21,10 @@ import {
 import { useCreateCommande } from '@/components/hooks/commandes-hooks'
 import { useIsAuthenticated, useEntrepriseId } from '@/components/stores/auth-store'
 import { useCart } from '@/components/hooks/use-cart'
-import { getImageUrl } from '@/lib/config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 
 const JOURS_SEMAINE = [
@@ -55,12 +49,12 @@ export default function CommanderPage() {
   const createAuthMutation = useCreateCommande()
   const cart = useCart()
 
-  // Forcer la livraison si l'utilisateur est connecté
+  // Forcer la livraison si l&apos;utilisateur est connecté
   useEffect(() => {
     if (isAuthenticated && typeLivraison === 'click_and_collect') {
       setTypeLivraison('livraison')
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, typeLivraison])
 
   // Formater le numéro de téléphone
   const formatTelephone = (value: string) => {
@@ -85,7 +79,7 @@ export default function CommanderPage() {
   }
 
   // Fonction pour formater le prix de manière sécurisée
-  const formatPrice = (prix: any): string => {
+  const formatPrice = (prix: number | string): string => {
     const priceNumber = typeof prix === 'string' ? parseFloat(prix) : Number(prix);
     return isNaN(priceNumber) ? '0.00' : priceNumber.toFixed(2);
   };
@@ -149,9 +143,9 @@ export default function CommanderPage() {
         const hasMenus = cart.items.some(item => item.type === 'menu')
         
         if (hasMenus) {
-          // Si il y a des menus, utiliser l'API publique qui supporte les menus
+          // Si il y a des menus, utiliser l&apos;API publique qui supporte les menus
           const publicCommandeData = {
-            entreprise_id: entrepriseId!,
+            entreprise_id: entrepriseId || null,
             items: cart.items.map(item => ({
               type: item.type,
               itemId: item.id,
@@ -160,12 +154,12 @@ export default function CommanderPage() {
             telephone_livraison: telephone,
             creneaux_livraison: creneaux, // Toujours livraison pour les connectés
             notes_commande: notes || undefined,
-            type_livraison: 'livraison' // Forcé à livraison
+            type_livraison: 'livraison' as const // Forcé à livraison
           }
           
           result = await createPublicMutation.mutateAsync(publicCommandeData)
         } else {
-          // Seulement des produits - utiliser l'API authentifiée
+          // Seulement des produits - utiliser l&apos;API authentifiée
           const produits = cart.items.map(item => ({
             produit_id: item.id,
             quantite: item.quantite
@@ -177,14 +171,17 @@ export default function CommanderPage() {
             creneaux_livraison: creneaux, // Toujours livraison pour les connectés
             notes_commande: notes || undefined,
             entreprise_id: entrepriseId || undefined,
-            type_livraison: 'livraison' // Forcé à livraison
+            type_livraison: 'livraison' as const // Forcé à livraison
           }
           
           result = await createAuthMutation.mutateAsync(authCommandeData)
         }
       } else {
-        // Utilisateur anonyme - utiliser l'API publique
+        // Utilisateur anonyme - utiliser l&apos;API publique
+        // Note: entrepriseId peut être null pour les commandes publiques
+        
         const publicCommandeData = {
+          entreprise_id: entrepriseId || null,
           items: cart.items.map(item => ({
             type: item.type, // 'menu' ou 'produit'
             itemId: item.id,
@@ -249,22 +246,27 @@ export default function CommanderPage() {
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Button 
                 onClick={() => {
-                  // Créer un lien direct avec les paramètres pré-remplis
-                  const params = new URLSearchParams({
-                    numero: numeroCommande,
-                    telephone: telephone
-                  });
-                  window.location.href = `/suivi-commande?${params.toString()}`;
+                  if (isAuthenticated) {
+                    // Utilisateur connecté : rediriger vers le dashboard
+                    window.location.href = `/dashboard`;
+                  } else {
+                    // Utilisateur non connecté : rediriger vers le suivi avec paramètres
+                    const params = new URLSearchParams({
+                      numero: numeroCommande,
+                      telephone: telephone
+                    });
+                    window.location.href = `/suivi-commande?${params.toString()}`;
+                  }
                 }}
                 className="bg-orange-600 hover:bg-orange-700"
               >
-                🔍 Suivre ma commande
+                {isAuthenticated ? '📊 Voir dans mon dashboard' : '🔍 Suivre ma commande'}
               </Button>
               <Button onClick={nouvelleCommande} variant="outline">
                 Nouvelle commande
               </Button>
               <Button onClick={() => window.location.href = '/'} variant="outline">
-                Retour à l'accueil
+                Retour à l&apos;accueil
               </Button>
             </div>
           </CardContent>
@@ -306,17 +308,17 @@ export default function CommanderPage() {
                       </Link>
                     </div>
                   ) : (
-                    cart.items.map((item, index) => (
+                    cart.items?.filter(item => item && item.id && item.nom).map((item) => (
                       <div key={`${item.type}-${item.id}`} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex-1">
                           <h4 className="font-medium text-sm">{item.nom}</h4>
-                          <p className="text-sm text-gray-600">{formatPrice(item.prix)}$ x {item.quantite}</p>
+                          <p className="text-sm text-gray-600">{formatPrice(item.prix || 0)}$ x {item.quantite || 1}</p>
                         </div>
                         <div className="text-right">
-                          <span className="font-semibold">{formatPrice(item.prix * item.quantite)}$</span>
+                          <span className="font-semibold">{formatPrice((item.prix || 0) * (item.quantite || 1))}$</span>
                         </div>
                       </div>
-                    ))
+                    )) || []
                   )}
                   
                   {cart.items.length > 0 && (

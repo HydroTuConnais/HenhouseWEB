@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useLogin } from '@/components/stores/auth-store';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -37,10 +38,10 @@ export default function LoginPage() {
           if (errorMsg.toLowerCase().includes('unauthorized') || 
               errorMsg.toLowerCase().includes('invalid credentials') ||
               errorMsg.toLowerCase().includes('401')) {
-            displayMessage = "Nom d'utilisateur ou mot de passe incorrect.";
+            displayMessage = "Nom d&apos;utilisateur ou mot de passe incorrect.";
           } else if (errorMsg.toLowerCase().includes('user not found') ||
                      errorMsg.toLowerCase().includes('utilisateur')) {
-            displayMessage = "Nom d'utilisateur non trouvé.";
+            displayMessage = "Nom d&apos;utilisateur non trouvé.";
           } else if (errorMsg.toLowerCase().includes('password') ||
                      errorMsg.toLowerCase().includes('mot de passe')) {
             displayMessage = "Mot de passe incorrect.";
@@ -61,7 +62,7 @@ export default function LoginPage() {
   useEffect(() => {
     loginMutation.reset();
     setErrorMessage(""); // Réinitialiser l'erreur quand l'utilisateur tape
-  }, [username, password]);
+  }, [username, password, loginMutation]);
 
   return (
     <div className="flex flex-col min-h-screen md:flex-row">
@@ -73,12 +74,12 @@ export default function LoginPage() {
           <div className="p-6 md:p-8 shadow-xl border border-orange-200 rounded-xl bg-white">
             <form onSubmit={handleSubmit} className="flex flex-col gap-4" autoComplete="off">
               <div>
-                <label className="block text-sm font-medium mb-1" htmlFor="username">Nom d'utilisateur</label>
+                <label className="block text-sm font-medium mb-1" htmlFor="username">Nom d&apos;utilisateur</label>
                 <Input
                   id="username"
                   name="username"
                   type="text"
-                  placeholder="Entrer votre nom d'utilisateur"
+                  placeholder="Entrer votre nom d&apos;utilisateur"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   required
@@ -122,7 +123,7 @@ export default function LoginPage() {
       </div>
       {/* Colonne droite : Image */}
       <div className="hidden md:flex md:flex-[0.6] items-center justify-center">
-        <img
+        <Image
           src="/login-side.png"
           alt="Illustration Hen House"
           className="object-cover rounded-xl shadow-2xl w-full mr-12 max-w-none max-h-none"

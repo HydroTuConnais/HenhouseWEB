@@ -35,7 +35,7 @@ export const useMe = () => {
     queryFn: async (): Promise<AuthResponse> => {
       return await apiRequest('/api/auth/me')
     },
-    retry: (failureCount, error: any) => {
+    retry: (failureCount, error: Error) => {
       // Ne pas retry si c'est une erreur 401 (non authentifié)
       if (error?.message?.includes('401') || error?.message?.includes('Unauthorized')) {
         return false

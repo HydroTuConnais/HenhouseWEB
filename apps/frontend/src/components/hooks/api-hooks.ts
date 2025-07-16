@@ -285,7 +285,7 @@ export const useAdminUsers = () => {
 export const useCreateUser = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (data: { username: string; email: string; password: string; role: 'admin' | 'entreprise'; entrepriseId?: number }) => {
+    mutationFn: async (data: { username: string; password: string; role: 'admin' | 'entreprise'; entrepriseId?: number }) => {
       return apiRequest('/api/admin/users', {
         method: 'POST',
         body: JSON.stringify(data),

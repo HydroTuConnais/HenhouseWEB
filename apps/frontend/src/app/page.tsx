@@ -7,13 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   ShoppingBag, 
   Search, 
-  Clock, 
   Phone, 
-  CheckCircle, 
   UtensilsCrossed,
-  Users,
-  Star
+  Users
 } from 'lucide-react';
+import Image from 'next/image';
 
 export default function HomePage() {
   return (
@@ -55,7 +53,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex-1">
-              <img
+              <Image
                 src="/landing-image.png"
                 alt="Hen House - Délicieux plats"
                 className="rounded-lg shadow-2xl w-full h-auto"
@@ -125,7 +123,7 @@ export default function HomePage() {
               Comment ça marche ?
             </h2>
             <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-              Commander chez Hen House n'a jamais été aussi simple
+              Commander chez Hen House n&apos;a jamais été aussi simple
             </p>
           </div>
 
@@ -211,12 +209,12 @@ export default function HomePage() {
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-gray-700 mb-4">
-                <strong>Vous n'avez pas besoin de créer un compte pour commander !</strong>
+                <strong>Vous n&apos;avez pas besoin de créer un compte pour commander !</strong>
               </p>
               <p className="text-gray-600 mb-6">
                 Après avoir passé votre commande, vous recevrez un <strong>numéro de commande unique</strong> 
                 (ex: CMD-1752359735513). Utilisez ce numéro avec votre téléphone (format XXX-XXXX) pour rechercher 
-                l'état de votre commande en temps réel sur notre page de recherche.
+                l&apos;état de votre commande en temps réel sur notre page de recherche.
               </p>
               <Button asChild variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
                 <Link href="/suivi-commande">

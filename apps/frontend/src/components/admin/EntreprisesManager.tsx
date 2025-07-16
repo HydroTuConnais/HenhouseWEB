@@ -20,7 +20,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
@@ -60,7 +59,7 @@ const EntrepriseForm = ({
         toast.success('Entreprise créée avec succès');
       }
       onSave();
-    } catch (error) {
+    } catch {
       toast.error('Erreur lors de la sauvegarde');
     }
   };
@@ -70,7 +69,7 @@ const EntrepriseForm = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium mb-1">Nom de l'entreprise</label>
+        <label className="block text-sm font-medium mb-1">Nom de l&apos;entreprise</label>
         <Input
           value={formData.nom}
           onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
@@ -104,7 +103,7 @@ export default function EntreprisesManager() {
       try {
         await deleteMutation.mutateAsync(id);
         toast.success('Entreprise supprimée avec succès');
-      } catch (error) {
+      } catch {
         toast.error('Erreur lors de la suppression');
       }
     }
@@ -196,7 +195,7 @@ export default function EntreprisesManager() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Modifier l'entreprise</DialogTitle>
+            <DialogTitle>Modifier l&apos;entreprise</DialogTitle>
           </DialogHeader>
           {selectedEntreprise && (
             <EntrepriseForm 

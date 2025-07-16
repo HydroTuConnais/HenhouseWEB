@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from "sonner";
-import { Building2, Users, Save, X, Check, AlertCircle } from 'lucide-react';
+import { Building2, Save, X, Check, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   useAdminMenus, 
   useAdminEntreprises, 
@@ -30,7 +28,7 @@ interface MenuWithSelection extends AdminMenu {
 }
 
 export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManagerProps) {
-  const { data: allMenus = [], isLoading: menusLoading, refetch: refetchMenus } = useAdminMenus();
+  const { data: allMenus = [], isLoading: menusLoading } = useAdminMenus();
   const { data: allEntreprises = [], isLoading: entreprisesLoading } = useAdminEntreprises();
   const updateMenuEntreprisesMutation = useUpdateMenuEntreprises();
   
@@ -43,7 +41,7 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
     if (allMenus.length > 0) {
       const menusWithSelection = allMenus.map((menu: AdminMenu) => ({
         ...menu,
-        selectedEntreprises: menu.entreprises?.map((e: any) => e.id) || [],
+        selectedEntreprises: menu.entreprises?.map((e) => e.id) || [],
         hasChanges: false,
       }));
       setMenus(menusWithSelection);
@@ -64,7 +62,7 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
             ? menu.selectedEntreprises.filter(id => id !== entrepriseId)
             : [...menu.selectedEntreprises, entrepriseId];
           
-          const originalEntreprises = menu.entreprises?.map((e: any) => e.id) || [];
+          const originalEntreprises = menu.entreprises?.map((e) => e.id) || [];
           const hasChanges = JSON.stringify(newSelectedEntreprises.sort()) !== JSON.stringify(originalEntreprises.sort());
           
           return {
@@ -82,8 +80,8 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
     setMenus(prevMenus =>
       prevMenus.map(menu => {
         if (menu.id === menuId) {
-          const allEntrepriseIds = allEntreprises.map((e: any) => e.id);
-          const originalEntreprises = menu.entreprises?.map((e: any) => e.id) || [];
+          const allEntrepriseIds = allEntreprises.map((e: AdminEntreprise) => e.id);
+          const originalEntreprises = menu.entreprises?.map((e) => e.id) || [];
           const hasChanges = JSON.stringify(allEntrepriseIds.sort()) !== JSON.stringify(originalEntreprises.sort());
           
           return {
@@ -101,7 +99,7 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
     setMenus(prevMenus =>
       prevMenus.map(menu => {
         if (menu.id === menuId) {
-          const originalEntreprises = menu.entreprises?.map((e: any) => e.id) || [];
+          const originalEntreprises = menu.entreprises?.map(e => e.id) || [];
           const hasChanges = originalEntreprises.length > 0;
           
           return {
@@ -151,7 +149,7 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
         if (menu.id === menuId) {
           return {
             ...menu,
-            selectedEntreprises: menu.entreprises?.map((e: any) => e.id) || [],
+            selectedEntreprises: menu.entreprises?.map((e) => e.id) || [],
             hasChanges: false,
           };
         }
@@ -263,7 +261,7 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
           <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <AlertCircle className="h-4 w-4 text-amber-600" />
             <span className="text-sm text-amber-800">
-              Des modifications sont en attente. N'oubliez pas de sauvegarder.
+              Des modifications sont en attente. N&apos;oubliez pas de sauvegarder.
             </span>
           </div>
         )}
@@ -321,7 +319,7 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {(menu.entreprises?.length ?? 0) > 0 ? (
-                          menu.entreprises?.map((entreprise: any) => (
+                          menu.entreprises?.map((entreprise) => (
                             <Badge key={entreprise.id} variant="secondary" className="text-xs">
                               {entreprise.nom}
                             </Badge>

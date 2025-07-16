@@ -98,7 +98,7 @@ export default function EntreprisesPage() {
           <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
           <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucune entreprise</h3>
           <p className="text-gray-500 mb-4">
-            Aucune entreprise n'est encore enregistrée dans le système.
+            Aucune entreprise n&apos;est encore enregistrée dans le système.
           </p>
           <Button className="bg-orange-500 hover:bg-orange-600">
             Créer une entreprise

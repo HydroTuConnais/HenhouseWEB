@@ -47,7 +47,7 @@ export interface CreneauLivraison {
 }
 
 export interface CreateCommandeData {
-  entreprise_id: number
+  entreprise_id: number | null
   produits?: {
     produit_id: number
     quantite: number
@@ -63,6 +63,13 @@ export interface CreateCommandeData {
 }
 
 export interface CommandeResponse {
+    menus: CommandeMenu[]
+  items: Array<{
+    type: 'menu' | 'produit'
+    itemId: number
+    quantite: number
+  }>
+  type_livraison: string
   id: number
   numeroCommande: string
   statut: string
@@ -74,6 +81,18 @@ export interface CommandeResponse {
   produits: PublicProduit[]
   createdAt: string
   updatedAt: string
+}
+
+export interface CommandeMenu {
+  id: number
+  nom: string
+  prix: number
+  produits: {
+    id: number
+    nom: string
+    prix: number
+    quantite: number
+  }[]
 }
 
 // Hooks pour les entreprises publiques

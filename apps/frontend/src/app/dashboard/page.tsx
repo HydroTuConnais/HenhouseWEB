@@ -20,7 +20,9 @@ import {
   Settings,
   Key,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Phone,
+  Store
 } from "lucide-react";
 import { useIsAuthenticated } from "@/components/stores/auth-store";
 import { useUserCommandes, type Commande } from "@/components/hooks/commandes-hooks";
@@ -28,8 +30,39 @@ import { useChangePassword } from "@/components/hooks/user-hooks";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
+// Types étendus pour les commandes avec propriétés supplémentaires
+interface CommandeEtendue extends Commande {
+  telephoneLivraison?: string;
+  creneaux_livraison?: Array<{
+    jour_debut: string;
+    heure_debut: string;
+    jour_fin: string;
+    heure_fin: string;
+  }>;
+  creneauxLivraison?: string | Array<{
+    jour_debut: string;
+    heure_debut: string;
+    jour_fin: string;
+    heure_fin: string;
+  }>;
+  type_livraison?: 'livraison' | 'click_and_collect';
+  notesCommande?: string;
+  // menus?: Array<{
+  //   id: number;
+  //   nom: string;
+  //   prix: number;
+  //   produits: Array<{
+  //     id: number;
+  //     nom: string;
+  //     prix: number;
+  //     quantite: number;
+  //   }>;
+  // }>;
+    // Utilisez le type CommandeMenu[] hérité de Commande
+}
+
 // Fonction pour formater le prix de manière sécurisée
-const formatPrice = (prix: any): string => {
+const formatPrice = (prix: string | number): string => {
   const priceNumber = typeof prix === 'string' ? parseFloat(prix) : Number(prix);
   return isNaN(priceNumber) ? '0.00' : priceNumber.toFixed(2);
 };
@@ -54,7 +87,73 @@ const getStatusInfo = (status: string) => {
   }
 };
 
-// Composant pour afficher les détails d'une commande
+// Fonction pour formater la date comme dans suivi-commande
+const formatDate = (dateString: string) => {
+  try {
+    // Essayer de parser la date de différentes manières
+    let date;
+    
+    // Si c'est un timestamp en millisecondes
+    if (!isNaN(Number(dateString))) {
+      date = new Date(Number(dateString));
+    } else {
+      // Sinon essayer de parser comme string
+      date = new Date(dateString);
+    }
+    
+    // Vérifier si la date est valide
+    if (isNaN(date.getTime())) {
+      return 'Date non disponible';
+    }
+    
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    console.error('Erreur de formatage de date:', error);
+    return 'Date non disponible';
+  }
+};
+
+// Fonction pour formater les créneaux comme dans suivi-commande
+const formatCreneaux = (creneaux: Array<{
+  jour_debut?: string;
+  jour_fin?: string;
+  heure_debut?: string;
+  heure_fin?: string;
+}>) => {
+  if (!creneaux || creneaux.length === 0) return 'Non spécifié';
+  
+  try {
+    const formatted = creneaux.filter(creneau => creneau && typeof creneau === 'object').map(creneau => {
+      const jourDebut = creneau.jour_debut || '';
+      const jourFin = creneau.jour_fin || '';
+      const heureDebut = creneau.heure_debut || '';
+      const heureFin = creneau.heure_fin || '';
+      
+      if (jourDebut === jourFin && jourDebut) {
+        return `${jourDebut} de ${heureDebut} à ${heureFin}`;
+      } else if (jourDebut && jourFin) {
+        return `Du ${jourDebut} ${heureDebut} au ${jourFin} ${heureFin}`;
+      } else if (heureDebut && heureFin) {
+        return `De ${heureDebut} à ${heureFin}`;
+      } else {
+        return 'Créneau non spécifié';
+      }
+    }).join(', ');
+    
+    return formatted || 'Non spécifié';
+  } catch (error) {
+    console.error('Erreur dans formatCreneaux:', error);
+    return 'Non spécifié';
+  }
+};
+
+// Composant pour afficher les détails d'une commande - aligné avec suivi-commande
 const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
   const statusInfo = getStatusInfo(commande.statut);
   const StatusIcon = statusInfo.icon;
@@ -70,41 +169,113 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
       <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto mx-2 sm:mx-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm sm:text-base">
-            <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5" />
+            <StatusIcon className="h-4 w-4 sm:h-5 sm:w-5" />
             Commande #{commande.numeroCommande}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-6">
-          {/* Statut et informations générales */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
-            <div className="flex items-center gap-2">
-              <StatusIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              <Badge className={`${statusInfo.color} text-xs sm:text-sm`}>
-                {statusInfo.label}
-              </Badge>
-            </div>
-            <div className="text-xs sm:text-sm text-gray-600">
-              {new Date(commande.createdAt).toLocaleDateString('fr-FR', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </div>
-          </div>
-
-          {/* Produits et menus commandés */}
+          {/* Statut et informations générales - exactement comme dans suivi-commande */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Badge className={`${statusInfo.color} text-sm`}>
+                    {statusInfo.label}
+                  </Badge>
+                  <span className="text-sm text-gray-600">
+                    {formatDate(commande.createdAt)}
+                  </span>
+                </div>
+                
+                <p className="text-gray-700">
+                  {statusInfo.label === 'En attente' && 'Votre commande a été reçue et est en attente de confirmation.'}
+                  {statusInfo.label === 'Confirmée' && 'Votre commande a été confirmée et va bientôt être préparée.'}
+                  {statusInfo.label === 'En préparation' && 'Votre commande est actuellement en cours de préparation.'}
+                  {statusInfo.label === 'Prête' && 'Votre commande est prête ! Vous pouvez venir la récupérer.'}
+                  {statusInfo.label === 'Livrée' && 'Votre commande a été livrée avec succès.'}
+                  {statusInfo.label === 'Annulée' && 'Cette commande a été annulée.'}
+                </p>
+                
+                {/* Informations de livraison - exactement comme dans suivi-commande */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-2">Informations de livraison</h4>
+                  <div className="space-y-2 text-sm">
+                    {(commande as CommandeEtendue).telephoneLivraison && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-gray-500" />
+                        <span>{(commande as CommandeEtendue).telephoneLivraison}</span>
+                      </div>
+                    )}
+                    <div className="flex items-start gap-2">
+                      <Calendar className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <span>
+                        {(() => {
+                          try {
+                            // Essayer d'abord le nouveau format creneaux_livraison
+                            if ((commande as CommandeEtendue).creneaux_livraison && Array.isArray((commande as CommandeEtendue).creneaux_livraison)) {
+                              return formatCreneaux((commande as CommandeEtendue).creneaux_livraison!);
+                            }
+                            
+                            // Fallback sur l'ancien format creneauxLivraison
+                            if ((commande as CommandeEtendue).creneauxLivraison && typeof (commande as CommandeEtendue).creneauxLivraison === 'string') {
+                              const parsed = JSON.parse((commande as CommandeEtendue).creneauxLivraison as string);
+                              const result = formatCreneaux(Array.isArray(parsed) ? parsed : [parsed]);
+                              return typeof result === 'string' ? result : 'Non spécifié';
+                            }
+                            
+                            // Si creneauxLivraison est déjà un array
+                            if (Array.isArray((commande as CommandeEtendue).creneauxLivraison)) {
+                              return formatCreneaux((commande as CommandeEtendue).creneauxLivraison as Array<{jour_debut: string; heure_debut: string; jour_fin: string; heure_fin: string}>);
+                            }
+                            
+                            return 'Non spécifié';
+                          } catch (error) {
+                            console.error('Erreur lors du parsing des créneaux:', error);
+                            return 'Non spécifié';
+                          }
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(commande as CommandeEtendue).type_livraison === 'livraison' ? (
+                        <Truck className="h-4 w-4 text-gray-500" />
+                      ) : (
+                        <Store className="h-4 w-4 text-gray-500" />
+                      )}
+                      <span>
+                        {(commande as CommandeEtendue).type_livraison === 'livraison' ? 'Livraison' : 'Click & Collect'}
+                      </span>
+                    </div>
+                    {commande.entreprise && (
+                      <div className="flex items-center gap-2">
+                        <ShoppingBag className="h-4 w-4 text-gray-500" />
+                        <span>{commande.entreprise.nom}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {(commande as CommandeEtendue).notesCommande && (
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">Notes de commande</h4>
+                    <p className="text-sm text-gray-700">{(commande as CommandeEtendue).notesCommande}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Détails des produits - exactement comme dans suivi-commande */}
+          <Card>
+            <CardHeader>
               <CardTitle className="text-sm">Articles commandés</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {/* Afficher les menus s'il y en a */}
-                {(commande as any).menus && (commande as any).menus.length > 0 && (
-                  (commande as any).menus.map((menu: any, index: number) => {
+                {(commande as CommandeEtendue).menus && (commande as CommandeEtendue).menus!.length > 0 && (
+                  (commande as CommandeEtendue).menus!.map((menu, index: number) => {
                     // Gérer le cas où pivot pourrait être undefined
                     const quantite = menu.pivot?.quantite || 1;
                     const prixUnitaire = menu.pivot?.prix_unitaire || menu.prix || 0;
@@ -120,7 +291,7 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
                             <div className="mt-2">
                               <p className="text-xs text-gray-500">Inclut:</p>
                               <ul className="text-xs text-gray-600 ml-2">
-                                {menu.produits.map((produit: any, idx: number) => (
+                                {menu.produits.map((produit, idx: number) => (
                                   <li key={produit.id || `produit-${idx}`}>• {produit.nom}</li>
                                 ))}
                               </ul>
@@ -142,7 +313,7 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
                 )}
                 
                 {/* Afficher les produits individuels */}
-                {commande.produits.map((item, index) => {
+                {commande.produits && commande.produits.map((item, index: number) => {
                   // Gérer le cas où pivot pourrait être undefined
                   const quantite = item.pivot?.quantite || 1;
                   const prixUnitaire = item.pivot?.prix_unitaire || item.prix || 0;
@@ -154,7 +325,9 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
                         {item.description && (
                           <p className="text-xs sm:text-sm text-gray-600 mt-1">{item.description}</p>
                         )}
-                        <p className="text-xs text-gray-500 mt-1">Catégorie: {item.categorie}</p>
+                        {item.categorie && (
+                          <p className="text-xs text-gray-500 mt-1">Catégorie: {item.categorie}</p>
+                        )}
                       </div>
                       <div className="text-left sm:text-right sm:ml-4">
                         <div className="font-medium text-sm sm:text-base">x{quantite}</div>
@@ -171,7 +344,7 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
                 
                 {/* Message si aucun article */}
                 {(!commande.produits || commande.produits.length === 0) && 
-                 (!(commande as any).menus || (commande as any).menus.length === 0) && (
+                 (!(commande as CommandeEtendue).menus || (commande as CommandeEtendue).menus!.length === 0) && (
                   <div className="text-center py-4 text-gray-500">
                     Aucun article dans cette commande
                   </div>
@@ -188,11 +361,11 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
             </CardContent>
           </Card>
 
-          {/* Informations de livraison */}
+          {/* Informations de commande - exactement comme dans suivi-commande */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
-                <Truck className="h-4 w-4" />
+                <Package className="h-4 w-4" />
                 Informations de commande
               </CardTitle>
             </CardHeader>
@@ -200,13 +373,7 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
               <div className="space-y-2">
                 <p className="text-sm"><strong>Numéro:</strong> {commande.numeroCommande}</p>
                 <p className="text-sm"><strong>Statut:</strong> {statusInfo.label}</p>
-                <p className="text-sm"><strong>Date de commande:</strong> {new Date(commande.createdAt).toLocaleDateString('fr-FR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}</p>
+                <p className="text-sm"><strong>Date de commande:</strong> {formatDate(commande.createdAt)}</p>
                 {commande.entreprise && (
                   <p className="text-sm"><strong>Entreprise:</strong> {commande.entreprise.nom}</p>
                 )}
@@ -219,6 +386,18 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
                 {commande.statut === 'prete' && (
                   <p className="text-sm text-blue-600"><strong>📦 Prête pour récupération</strong></p>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Informations supplémentaires - exactement comme dans suivi-commande */}
+          <Card className="bg-blue-50">
+            <CardContent>
+              <div className="text-center text-sm text-blue-800">
+                <p className="font-medium mb-2">Besoin d&apos;aide avec votre commande ?</p>
+                <p>
+                  Contactez-nous au <strong>+362</strong> ou gardez votre numéro de commande <strong>#{commande.numeroCommande}</strong> à portée de main.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -261,8 +440,9 @@ const ChangePasswordForm = () => {
       setNewPassword('');
       setConfirmPassword('');
       setIsOpen(false);
-    } catch (error: any) {
-      toast.error(error.message || 'Erreur lors du changement de mot de passe');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du changement de mot de passe';
+      toast.error(errorMessage);
     }
   };
 
@@ -375,6 +555,7 @@ export default function DashboardPage() {
       setAutoRefresh(false);
     }
   }, [commandes]);
+
 
   if (!isAuthenticated) {
     return (
@@ -537,7 +718,7 @@ export default function DashboardPage() {
                             <div className="text-left sm:text-right">
                               <p className="font-semibold text-sm sm:text-base">{formatPrice(commande.total)}$</p>
                               <p className="text-xs sm:text-sm text-gray-600">
-                                {(commande.produits.length + ((commande as any).menus?.length || 0))} article(s)
+                                {(commande.produits.length + ((commande as CommandeEtendue).menus?.length || 0))} article(s)
                               </p>
                             </div>
                             <CommandeDetailDialog commande={commande} />
@@ -604,7 +785,7 @@ export default function DashboardPage() {
                             <div className="text-left sm:text-right">
                               <p className="font-semibold text-sm sm:text-base">{formatPrice(commande.total)}$</p>
                               <p className="text-xs sm:text-sm text-gray-600">
-                                {(commande.produits.length + ((commande as any).menus?.length || 0))} article(s)
+                                {(commande.produits.length + ((commande as CommandeEtendue).menus?.length || 0))} article(s)
                               </p>
                             </div>
                             <CommandeDetailDialog commande={commande} />
@@ -631,7 +812,7 @@ export default function DashboardPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="username">Nom d'utilisateur</Label>
+                  <Label htmlFor="username">Nom d&apos;utilisateur</Label>
                   <Input id="username" value={user?.username || ''} disabled />
                 </div>
                 <div>
@@ -660,7 +841,7 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 <ChangePasswordForm />
                 <p className="text-sm text-gray-500 mt-4">
-                  💡 Votre dashboard affiche maintenant vos vraies commandes récupérées depuis l'API backend !
+                  💡 Votre dashboard affiche maintenant vos vraies commandes récupérées depuis l&apos;API backend !
                 </p>
               </div>
             </CardContent>

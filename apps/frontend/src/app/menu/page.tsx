@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +17,10 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/components/hooks/use-cart";
 import { useMenus, useProduits, type Product, type Menu } from "@/components/hooks/api-hooks";
 import { useIsAuthenticated, useEntrepriseId } from "@/components/stores/auth-store";
-import { getImageUrl, IMAGE_BASE_URL } from "@/lib/config";
-import Link from "next/link";
+import { IMAGE_BASE_URL } from "@/lib/config";
 
 // Fonction utilitaire pour formater le prix de manière sécurisée
-const formatPrice = (prix: any): string => {
+const formatPrice = (prix: string | number): string => {
   const priceNumber = typeof prix === 'string' ? parseFloat(prix) : Number(prix);
   return isNaN(priceNumber) ? '0.00' : priceNumber.toFixed(2);
 };
@@ -34,7 +33,13 @@ const ProductCard = ({
 }: { 
   item: Product | Menu; 
   type: "produit" | "menu";
-  onAddToCart: (item: any) => void;
+  onAddToCart: (item: {
+    id: number;
+    nom: string;
+    prix: number;
+    imageUrl: string;
+    type: "menu" | "produit";
+  }) => void;
 }) => {
   // Construire l'URL de l'image de manière sécurisée
   const getImageUrl = () => {
@@ -78,7 +83,7 @@ const ProductCard = ({
               nom: item.nom,
               prix: item.prix,
               imageUrl: imageUrl,
-              type: type
+              type: type as "menu" | "produit"
             })}
             className="bg-orange-500 hover:bg-orange-600"
           >
@@ -306,7 +311,7 @@ export default function MenuPage() {
               <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucun menu public disponible</h3>
               <p className="text-gray-500">
                 Tous les menus sont actuellement liés à des entreprises spécifiques.<br />
-                Connectez-vous pour accéder aux menus d'entreprises.
+                Connectez-vous pour accéder aux menus d&apos;entreprises.
               </p>
             </div>
           )}
@@ -332,7 +337,7 @@ export default function MenuPage() {
               <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucun produit public disponible</h3>
               <p className="text-gray-500">
                 Tous les produits sont actuellement liés à des entreprises spécifiques.<br />
-                Connectez-vous pour accéder aux produits d'entreprises.
+                Connectez-vous pour accéder aux produits d&apos;entreprises.
               </p>
             </div>
           )}

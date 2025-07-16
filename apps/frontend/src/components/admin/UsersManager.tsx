@@ -66,19 +66,22 @@ const UserForm = ({
     e.preventDefault();
 
     try {
-      const payload: any = { ...formData };
-      
-      // Conversion de entrepriseId
-      if (payload.entrepriseId) {
-        payload.entrepriseId = parseInt(payload.entrepriseId);
-      } else {
-        payload.entrepriseId = null;
-      }
+      const payload: {
+        username: string;
+        password?: string;
+        role: 'admin' | 'entreprise';
+        entrepriseId?: number;
+      } = {
+        ...formData,
+        entrepriseId:
+          formData.role === "entreprise" && formData.entrepriseId
+            ? parseInt(formData.entrepriseId as string)
+            : undefined,
+      };
 
-      // Pour la modification, ne pas envoyer le mot de passe s'il est vide
       if (user && !payload.password) {
-        const { password, ...payloadWithoutPassword } = payload;
-        
+        const { ...payloadWithoutPassword } = payload;
+
         await updateMutation.mutateAsync({ id: user.id, data: payloadWithoutPassword });
         toast.success('Utilisateur modifié avec succès');
       } else {
@@ -86,12 +89,12 @@ const UserForm = ({
           await updateMutation.mutateAsync({ id: user.id, data: payload });
           toast.success('Utilisateur modifié avec succès');
         } else {
-          await createMutation.mutateAsync(payload);
+          await createMutation.mutateAsync({ ...payload, password: formData.password });
           toast.success('Utilisateur créé avec succès');
         }
       }
       onSave();
-    } catch (error) {
+    } catch {
       toast.error('Erreur lors de la sauvegarde');
     }
   };
@@ -101,7 +104,7 @@ const UserForm = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium mb-1">Nom d'utilisateur</label>
+        <label className="block text-sm font-medium mb-1">Nom d&apos;utilisateur</label>
         <Input
           value={formData.username}
           onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -195,7 +198,7 @@ export default function UsersManager() {
       try {
         await deleteMutation.mutateAsync(id);
         toast.success('Utilisateur supprimé avec succès');
-      } catch (error) {
+      } catch {
         toast.error('Erreur lors de la suppression');
       }
     }
@@ -245,7 +248,7 @@ export default function UsersManager() {
             <TableHeader>
               <TableRow>
                 <TableHead>ID</TableHead>
-                <TableHead>Nom d'utilisateur</TableHead>
+                <TableHead>Nom d&apos;utilisateur</TableHead>
                 <TableHead>Rôle</TableHead>
                 <TableHead>Entreprise</TableHead>
                 <TableHead>Statut</TableHead>
@@ -303,7 +306,7 @@ export default function UsersManager() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Modifier l'utilisateur</DialogTitle>
+            <DialogTitle>Modifier l&apos;utilisateur</DialogTitle>
           </DialogHeader>
           {selectedUser && (
             <UserForm 

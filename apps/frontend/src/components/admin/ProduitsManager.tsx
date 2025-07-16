@@ -13,13 +13,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -29,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Package, Loader2, Upload, X } from "lucide-react";
+import { Plus, Edit, Trash2, Package, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { 
   useAdminProduits, 
@@ -41,6 +34,8 @@ import {
   type AdminEntreprise
 } from "@/components/hooks/api-hooks";
 import { getImageUrl } from "@/lib/config";
+import Image from 'next/image';
+
 
 // Formulaire de création/modification
 const ProduitForm = ({ 
@@ -119,7 +114,7 @@ const ProduitForm = ({
         toast.success('Produit créé avec succès');
       }
       onSave();
-    } catch (error) {
+    } catch {
       toast.error('Erreur lors de la sauvegarde');
     }
   };
@@ -202,7 +197,7 @@ const ProduitForm = ({
         <div className="space-y-2">
           {previewUrl && (
             <div className="relative inline-block">
-              <img 
+              <Image 
                 src={previewUrl} 
                 alt="Aperçu" 
                 className="w-32 h-32 object-cover rounded border"
@@ -255,7 +250,7 @@ export default function ProduitsManager() {
       try {
         await deleteMutation.mutateAsync(id);
         toast.success('Produit supprimé avec succès');
-      } catch (error) {
+      } catch {
         toast.error('Erreur lors de la suppression');
       }
     }
@@ -318,7 +313,7 @@ export default function ProduitsManager() {
                 <TableRow key={produit.id}>
                   <TableCell>
                     {produit.imageUrl ? (
-                      <img 
+                      <Image 
                         src={getImageUrl(produit.imageUrl) || ''} 
                         alt={produit.nom}
                         className="w-12 h-12 object-cover rounded"

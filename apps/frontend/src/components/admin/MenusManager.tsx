@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from "sonner";
-import { ChefHat, Plus, Edit, Trash2, Upload, X, Package, RefreshCw, Settings, GripVertical, Loader2 } from 'lucide-react';
+import { ChefHat, Plus, Edit, Trash2, Upload, X, Package, RefreshCw, GripVertical, Loader2 } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -45,6 +45,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import Image from 'next/image';
+
 
 interface MenuFormProps {
   menu?: AdminMenu;
@@ -106,7 +108,7 @@ function MenuForm({ menu, onSave, onCancel }: MenuFormProps) {
         toast.success('Menu créé avec succès');
       }
       onSave();
-    } catch (error) {
+    } catch {
       toast.error('Erreur lors de la sauvegarde');
     }
   };
@@ -159,7 +161,7 @@ function MenuForm({ menu, onSave, onCancel }: MenuFormProps) {
         <div className="space-y-2">
           {previewUrl && (
             <div className="relative inline-block">
-              <img 
+              <Image 
                 src={previewUrl} 
                 alt="Aperçu" 
                 className="w-32 h-32 object-cover rounded-lg"
@@ -225,7 +227,7 @@ export default function MenusManager() {
       try {
         await deleteMutation.mutateAsync(id);
         toast.success('Menu supprimé avec succès');
-      } catch (error) {
+      } catch {
         toast.error('Erreur lors de la suppression');
       }
     }
@@ -237,7 +239,7 @@ export default function MenusManager() {
 
   // Composant pour les lignes de table draggables
   interface SortableTableRowProps {
-    produit: any;
+    produit: AdminProduit & { pivot?: { ordre?: number; quantite?: number; disponible?: boolean } };
     menu: AdminMenu;
     index: number;
     totalCount: number;
@@ -246,7 +248,7 @@ export default function MenusManager() {
     isDisabled?: boolean;
   }
 
-  function SortableTableRow({ produit, menu, index, totalCount, onUpdate, onRemove, isDisabled = false }: SortableTableRowProps) {
+  function SortableTableRow({ produit, menu, onUpdate, onRemove, isDisabled = false }: SortableTableRowProps) {
     const {
       attributes,
       listeners,
@@ -287,7 +289,7 @@ export default function MenusManager() {
         </TableCell>
         <TableCell className="w-24">
           {produit.imageUrl ? (
-            <img 
+            <Image 
               src={getImageUrl(produit.imageUrl) || ''} 
               alt={produit.nom}
               className="w-20 h-20 object-cover rounded"
@@ -353,7 +355,7 @@ export default function MenusManager() {
   // Composant pour éditer les propriétés d'un produit dans un menu
   interface EditProduitInMenuProps {
     menu: AdminMenu;
-    produit: any;
+    produit: AdminProduit & { pivot?: { ordre?: number; quantite?: number; disponible?: boolean } };
     onUpdate: () => void;
     disabled?: boolean;
   }
@@ -392,8 +394,9 @@ export default function MenusManager() {
         toast.success('Propriétés du produit mises à jour');
         setIsOpen(false);
         onUpdate();
-      } catch (error: any) {
-        toast.error(error.message || 'Erreur lors de la mise à jour');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la mise à jour';
+        toast.error(errorMessage);
       }
     };
 
@@ -504,7 +507,7 @@ export default function MenusManager() {
     const [isReordering, setIsReordering] = useState(false);
 
     const { data: menuProduits, isLoading: loadingMenuProduits, refetch: refetchMenuProduits } = useMenuProduits(menu.id, isOpen);
-    const { data: allProduits, isLoading: loadingAllProduits, refetch: refetchAllProduits } = useAdminProduits();
+    const { data: allProduits, refetch: refetchAllProduits } = useAdminProduits();
     
     const addMutation = useAddProduitToMenu();
     const updateMutation = useUpdateProduitInMenu();
@@ -531,14 +534,14 @@ export default function MenusManager() {
     }, [isOpen, refetchMenuProduits, refetchAllProduits]);
 
     // Tri des produits par ordre
-    const sortedProduits = menuProduits?.slice().sort((a: any, b: any) => {
+    const sortedProduits = menuProduits?.slice().sort((a: AdminProduit & { pivot?: { ordre?: number } }, b: AdminProduit & { pivot?: { ordre?: number } }) => {
       const orderA = a.pivot?.ordre || 999;
       const orderB = b.pivot?.ordre || 999;
       return orderA - orderB;
     }) || [];
 
     const availableProduits = allProduits?.filter((produit: AdminProduit) => 
-      produit.active && !menuProduits?.some((mp: any) => mp.id === produit.id)
+      produit.active && !menuProduits?.some((mp: AdminProduit) => mp.id === produit.id)
     ) || [];
 
     // Gestion du drag & drop
@@ -553,8 +556,8 @@ export default function MenusManager() {
         return;
       }
 
-      const oldIndex = sortedProduits.findIndex((item: any) => item.id === active.id);
-      const newIndex = sortedProduits.findIndex((item: any) => item.id === over.id);
+      const oldIndex = sortedProduits.findIndex((item: AdminProduit) => item.id === active.id);
+      const newIndex = sortedProduits.findIndex((item: AdminProduit) => item.id === over.id);
 
       if (oldIndex === -1 || newIndex === -1) {
         return;
@@ -565,10 +568,14 @@ export default function MenusManager() {
 
       try {
         // Réorganiser le tableau localement pour l'UI
-        const newOrder = arrayMove(sortedProduits, oldIndex, newIndex);
+        const newOrder = arrayMove(
+          sortedProduits,
+          oldIndex,
+          newIndex
+        ) as (AdminProduit & { pivot?: { quantite?: number; disponible?: boolean; ordre?: number } })[];
         
         // Mettre à jour tous les ordres sur le serveur
-        const updatePromises = newOrder.map((produit: any, index: number) => 
+        const updatePromises = newOrder.map((produit, index) => 
           updateMutation.mutateAsync({
             menuId: menu.id,
             produitId: produit.id,
@@ -581,7 +588,7 @@ export default function MenusManager() {
         await Promise.all(updatePromises);
         toast.success('Ordre mis à jour');
         refetchMenuProduits();
-      } catch (error) {
+      } catch {
         toast.error('Erreur lors de la réorganisation');
       } finally {
         setIsReordering(false);
@@ -594,7 +601,7 @@ export default function MenusManager() {
 
       try {
         // Calculer l'ordre par défaut : maximum actuel + 1
-        const maxOrder = sortedProduits?.reduce((max: number, p: any) => {
+        const maxOrder = sortedProduits?.reduce((max: number, p: AdminProduit & { pivot?: { ordre?: number } }) => {
           const currentOrder = p.pivot?.ordre || 0;
           return Math.max(max, currentOrder);
         }, 0) || 0;
@@ -613,8 +620,8 @@ export default function MenusManager() {
         setQuantite(1);
         setOrdre(null);
         setDisponible(true);
-      } catch (error) {
-        toast.error('Erreur lors de l\'ajout du produit');
+      } catch {
+        toast.error('Erreur lors de l’ajout du produit');
       }
     };
 
@@ -623,7 +630,7 @@ export default function MenusManager() {
         try {
           await removeMutation.mutateAsync({ menuId: menu.id, produitId });
           toast.success('Produit retiré du menu');
-        } catch (error) {
+        } catch {
           toast.error('Erreur lors de la suppression');
         }
       }
@@ -702,7 +709,7 @@ export default function MenusManager() {
                         type="number"
                         value={ordre || ''}
                         onChange={(e) => setOrdre(e.target.value ? parseInt(e.target.value) : null)}
-                        placeholder={`Auto (${((sortedProduits?.reduce((max: number, p: any) => Math.max(max, p.pivot?.ordre || 0), 0) || 0) + 1)})`}
+                        placeholder={`Auto (${((sortedProduits?.reduce((max: number, p: AdminProduit & { pivot?: { ordre?: number } }) => Math.max(max, p.pivot?.ordre || 0), 0) || 0) + 1)})`}
                         className="text-sm h-9"
                       />
                     </div>
@@ -776,11 +783,11 @@ export default function MenusManager() {
                           </TableRow>
                         </TableHeader>
                         <SortableContext 
-                          items={sortedProduits.map((p: any) => p.id)}
+                          items={sortedProduits.map((p: AdminProduit) => p.id)}
                           strategy={verticalListSortingStrategy}
                         >
                           <TableBody>
-                            {sortedProduits.map((produit: any, index: number) => (
+                            {sortedProduits.map((produit: AdminProduit & { pivot?: { ordre?: number; quantite?: number; disponible?: boolean } }, index: number) => (
                               <SortableTableRow
                                 key={produit.id}
                                 produit={produit}
@@ -851,7 +858,7 @@ export default function MenusManager() {
                       <Dialog>
                         <DialogTrigger asChild>
                           <div className="cursor-pointer">
-                            <img 
+                            <Image 
                               src={getImageUrl(menu.imageUrl) || ''} 
                               alt={menu.nom}
                               className="w-16 h-16 object-cover rounded-lg hover:opacity-80 transition-opacity"
@@ -863,7 +870,7 @@ export default function MenusManager() {
                             <DialogTitle>{menu.nom}</DialogTitle>
                           </DialogHeader>
                           <div className="flex justify-center">
-                            <img 
+                            <Image 
                               src={getImageUrl(menu.imageUrl) || ''} 
                               alt={menu.nom}
                               className="max-w-full max-h-96 object-contain rounded-lg"
@@ -891,7 +898,7 @@ export default function MenusManager() {
                               title={`${produit.nom} - ${produit.prix}$${produit.pivot?.quantite ? ` (x${produit.pivot.quantite})` : ''}`}
                             >
                               {produit.imageUrl ? (
-                                <img 
+                                <Image 
                                   src={getImageUrl(produit.imageUrl) || ''} 
                                   alt={produit.nom}
                                   className="w-8 h-8 object-cover rounded-full border-2 border-white"

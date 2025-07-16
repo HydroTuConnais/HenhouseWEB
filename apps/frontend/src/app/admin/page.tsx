@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Shield, Building2, Users, ChefHat, Package, Link2 } from "lucide-react";
@@ -30,7 +30,7 @@ export default function AdminDashboard() {
             onClick={() => router.push('/')}
             className="bg-orange-600 hover:bg-orange-700"
           >
-            Retour à l'accueil
+            Retour à l&apos;accueil
           </Button>
         </div>
       </div>
