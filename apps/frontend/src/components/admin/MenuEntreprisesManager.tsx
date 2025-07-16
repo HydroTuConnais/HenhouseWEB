@@ -272,7 +272,7 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
       <CardContent>
         <div className="space-y-4">
           {filteredMenus.map((menu) => (
-            <Card key={menu.id} className={`transition-all ${menu.hasChanges ? 'border-orange-300 bg-orange-50' : ''}`}>
+            <Card key={menu.id} className={`transition-all ${menu.hasChanges ? 'border-orange-300 bg-white' : ''}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
                   {/* Checkbox de sélection */}
@@ -312,7 +312,7 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
                       <p className="text-sm text-gray-600 mb-2 line-clamp-2">{menu.description}</p>
                     )}
                     
-                    <p className="text-sm font-medium text-green-600 mb-3">{menu.prix}€</p>
+                    <p className="text-sm font-medium text-green-600 mb-3">{menu.prix}$</p>
 
                     {/* Entreprises actuelles */}
                     <div className="mb-3">

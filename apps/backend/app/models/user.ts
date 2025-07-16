@@ -43,4 +43,10 @@ export default class User extends compose(BaseModel, AuthFinder) {
 
   @hasMany(() => Commande)
   declare commandes: HasMany<typeof Commande>
+
+  // Méthode pour forcer le hashage du mot de passe
+  async updatePassword(newPassword: string) {
+    this.password = newPassword
+    await this.save()
+  }
 }

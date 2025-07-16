@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,7 @@ import { ShoppingCart, Plus, Minus, X, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/hooks/use-cart";
-import { useMenus, useProduits, usePublicMenus, usePublicProduits, type Product, type Menu } from "@/components/hooks/api-hooks";
+import { useMenus, useProduits, type Product, type Menu } from "@/components/hooks/api-hooks";
 import { useIsAuthenticated, useEntrepriseId } from "@/components/stores/auth-store";
 import { getImageUrl, IMAGE_BASE_URL } from "@/lib/config";
 import Link from "next/link";
@@ -149,15 +150,29 @@ const CartModal = () => {
                     size="icon"
                     className="h-8 w-8"
                     onClick={() => cart.updateQuantity(item.id, item.type, item.quantite - 1)}
+                    disabled={item.quantite <= 1}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="w-8 text-center font-medium">{item.quantite}</span>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="99"
+                    value={item.quantite}
+                    onChange={(e) => {
+                      const newQuantity = parseInt(e.target.value);
+                      if (!isNaN(newQuantity) && newQuantity > 0) {
+                        cart.updateQuantity(item.id, item.type, newQuantity);
+                      }
+                    }}
+                    className="w-16 h-8 text-center px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
                   <Button 
                     variant="outline" 
                     size="icon"
                     className="h-8 w-8"
                     onClick={() => cart.updateQuantity(item.id, item.type, item.quantite + 1)}
+                    disabled={item.quantite >= 99}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -210,10 +225,6 @@ export default function MenuPage() {
   
   const { data: menus = [], isLoading: menusLoading } = useMenus();
   const { data: produits = [], isLoading: produitsLoading } = useProduits();
-  
-  // Pour le debug, récupérons aussi les données publiques séparément
-  const { data: publicMenus = [] } = usePublicMenus();
-  const { data: publicProduits = [] } = usePublicProduits();
 
   const activeMenus = menus.filter((m: Menu) => m.active);
   const isLoading = menusLoading || produitsLoading;
@@ -257,24 +268,12 @@ export default function MenuPage() {
                   Connecté en tant que <strong>{user.username}</strong> ({user.role})
                   {entrepriseId && ` - Entreprise ID: ${entrepriseId}`}
                 </p>
-                <p className="text-sm text-blue-600">
-                  Vous voyez {publicMenus.length} menus publics + {activeMenus.length - publicMenus.length} menus d'entreprise
-                </p>
               </div>
             </div>
           </div>
         ) : (
           <p className="text-gray-600">Découvrez nos menus et produits disponibles publiquement</p>
         )}
-        
-        {/* Debug info */}
-        <div className="mt-4 p-3 bg-gray-50 rounded text-xs text-gray-600">
-          <strong>Debug:</strong> 
-          Menus publics: {publicMenus.length} | 
-          Menus totaux: {activeMenus.length} | 
-          Produits publics: {publicProduits.length} | 
-          Produits totaux: {produits.filter((p: Product) => p.active).length}
-        </div>
       </div>
 
       <Tabs defaultValue="menus" className="w-full">
@@ -283,7 +282,7 @@ export default function MenuPage() {
             Nos Menus
           </TabsTrigger>
           <TabsTrigger value="produits" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
-            À la carte
+            Nos Produits
           </TabsTrigger>
         </TabsList>
         

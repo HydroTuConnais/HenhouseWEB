@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { API_BASE_URL } from '@/lib/config'
+import { apiRequest } from '@/lib/query-client'
 
 // Types
 export interface PublicEntreprise {
@@ -48,8 +48,13 @@ export interface CreneauLivraison {
 
 export interface CreateCommandeData {
   entreprise_id: number
-  produits: {
+  produits?: {
     produit_id: number
+    quantite: number
+  }[]
+  items?: {
+    type: 'menu' | 'produit'
+    itemId: number
     quantite: number
   }[]
   telephone_livraison: string
@@ -76,11 +81,7 @@ export function usePublicEntreprises() {
   return useQuery({
     queryKey: ['public-entreprises'],
     queryFn: async (): Promise<PublicEntreprise[]> => {
-      const response = await fetch(`${API_BASE_URL}/api/commandes/entreprises`)
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des entreprises')
-      }
-      const data = await response.json()
+      const data = await apiRequest('/api/commandes/entreprises')
       return data.entreprises
     },
   })
@@ -90,11 +91,7 @@ export function usePublicEntreprise(id: number) {
   return useQuery({
     queryKey: ['public-entreprise', id],
     queryFn: async (): Promise<PublicEntreprise> => {
-      const response = await fetch(`${API_BASE_URL}/api/commandes/entreprises/${id}`)
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération de l\'entreprise')
-      }
-      const data = await response.json()
+      const data = await apiRequest(`/api/commandes/entreprises/${id}`)
       return data.entreprise
     },
     enabled: !!id,
@@ -104,22 +101,11 @@ export function usePublicEntreprise(id: number) {
 // Hook pour créer une commande publique
 export function useCreatePublicCommande() {
   return useMutation({
-    mutationFn: async (data: CreateCommandeData): Promise<CommandeResponse> => {
-      const response = await fetch(`${API_BASE_URL}/api/commandes/public`, {
+    mutationFn: async (data: CreateCommandeData): Promise<{ commande: CommandeResponse; numeroCommande: string }> => {
+      return apiRequest('/api/commandes/public', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(data),
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Erreur lors de la création de la commande')
-      }
-
-      const result = await response.json()
-      return result.commande
     },
     onSuccess: (data) => {
       toast.success(`Commande créée avec succès ! Numéro: ${data.numeroCommande}`)
@@ -135,13 +121,21 @@ export function useCommandeStatut(numeroCommande: string) {
   return useQuery({
     queryKey: ['commande-statut', numeroCommande],
     queryFn: async (): Promise<CommandeResponse> => {
-      const response = await fetch(`${API_BASE_URL}/api/commandes/statut/${numeroCommande}`)
-      if (!response.ok) {
-        throw new Error('Commande non trouvée')
-      }
-      const data = await response.json()
+      const data = await apiRequest(`/api/commandes/statut/${numeroCommande}`)
       return data.commande
     },
     enabled: !!numeroCommande,
+  })
+}
+
+// Hook pour récupérer le statut d'une commande avec vérification téléphone
+export function useCommandeStatutWithPhone(numeroCommande: string, telephone: string) {
+  return useQuery({
+    queryKey: ['commande-statut-phone', numeroCommande, telephone],
+    queryFn: async (): Promise<CommandeResponse> => {
+      const data = await apiRequest(`/api/commandes/statut/${numeroCommande}?telephone=${encodeURIComponent(telephone)}`)
+      return data.commande
+    },
+    enabled: !!numeroCommande && !!telephone,
   })
 }

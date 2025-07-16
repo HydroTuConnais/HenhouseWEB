@@ -33,7 +33,7 @@ export const useMe = () => {
   return useQuery({
     queryKey: authQueryKeys.me,
     queryFn: async (): Promise<AuthResponse> => {
-      return await apiRequest('/auth/me')
+      return await apiRequest('/api/auth/me')
     },
     retry: (failureCount, error: any) => {
       // Ne pas retry si c'est une erreur 401 (non authentifié)
@@ -52,7 +52,7 @@ export const useLogin = () => {
   
   return useMutation({
     mutationFn: async ({ username, password }: { username: string; password: string }): Promise<AuthResponse> => {
-      return await apiRequest('/auth/login', {
+      return await apiRequest('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({ username, password }),
       })
@@ -78,7 +78,7 @@ export const useLogout = () => {
   
   return useMutation({
     mutationFn: async () => {
-      return await apiRequest('/auth/logout', {
+      return await apiRequest('/api/auth/logout', {
         method: 'POST',
       })
     },

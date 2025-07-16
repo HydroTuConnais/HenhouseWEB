@@ -58,6 +58,7 @@
     "@adonisjs/lucid": "^21.6.1",
     "@adonisjs/session": "^7.5.1",
     "@vinejs/vine": "^3.0.1",
+    "discord.js": "^14.21.0",
     "luxon": "^3.6.1",
     "pg": "^8.16.0",
     "reflect-metadata": "^0.2.2",

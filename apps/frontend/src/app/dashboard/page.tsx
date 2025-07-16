@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,8 @@ import {
   Truck,
   Settings,
   Key,
-  Loader2
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import { useIsAuthenticated } from "@/components/stores/auth-store";
 import { useUserCommandes, type Commande } from "@/components/hooks/commandes-hooks";
@@ -94,22 +95,62 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
             </div>
           </div>
 
-          {/* Produits commandés */}
+          {/* Produits et menus commandés */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Produits commandés</CardTitle>
+              <CardTitle className="text-sm">Articles commandés</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
+                {/* Afficher les menus s'il y en a */}
+                {(commande as any).menus && (commande as any).menus.length > 0 && (
+                  (commande as any).menus.map((menu: any, index: number) => {
+                    // Gérer le cas où pivot pourrait être undefined
+                    const quantite = menu.pivot?.quantite || 1;
+                    const prixUnitaire = menu.pivot?.prix_unitaire || menu.prix || 0;
+                    
+                    return (
+                      <div key={`menu-${index}`} className="flex flex-col sm:flex-row sm:justify-between sm:items-start p-3 border rounded-lg gap-3 sm:gap-4 bg-orange-50 border-orange-200">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm sm:text-base">🍽️ {menu.nom}</h4>
+                          {menu.description && (
+                            <p className="text-xs sm:text-sm text-gray-600 mt-1">{menu.description}</p>
+                          )}
+                          {menu.produits && menu.produits.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-500">Inclut:</p>
+                              <ul className="text-xs text-gray-600 ml-2">
+                                {menu.produits.map((produit: any, idx: number) => (
+                                  <li key={produit.id || `produit-${idx}`}>• {produit.nom}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-left sm:text-right sm:ml-4">
+                          <div className="font-medium text-sm sm:text-base">x{quantite}</div>
+                          <div className="text-xs sm:text-sm text-gray-600">
+                            {formatPrice(prixUnitaire)}$ / menu
+                          </div>
+                          <div className="text-xs sm:text-sm font-semibold">
+                            Total: {formatPrice(prixUnitaire * quantite)}$
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                
+                {/* Afficher les produits individuels */}
                 {commande.produits.map((item, index) => {
                   // Gérer le cas où pivot pourrait être undefined
                   const quantite = item.pivot?.quantite || 1;
                   const prixUnitaire = item.pivot?.prix_unitaire || item.prix || 0;
                   
                   return (
-                    <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-start p-3 border rounded-lg gap-3 sm:gap-4">
+                    <div key={`produit-${item.id || index}`} className="flex flex-col sm:flex-row sm:justify-between sm:items-start p-3 border rounded-lg gap-3 sm:gap-4 bg-blue-50 border-blue-200">
                       <div className="flex-1">
-                        <h4 className="font-medium text-sm sm:text-base">{item.nom}</h4>
+                        <h4 className="font-medium text-sm sm:text-base">🛍️ {item.nom}</h4>
                         {item.description && (
                           <p className="text-xs sm:text-sm text-gray-600 mt-1">{item.description}</p>
                         )}
@@ -127,6 +168,14 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
                     </div>
                   );
                 })}
+                
+                {/* Message si aucun article */}
+                {(!commande.produits || commande.produits.length === 0) && 
+                 (!(commande as any).menus || (commande as any).menus.length === 0) && (
+                  <div className="text-center py-4 text-gray-500">
+                    Aucun article dans cette commande
+                  </div>
+                )}
               </div>
               
               {/* Total */}
@@ -293,10 +342,39 @@ const ChangePasswordForm = () => {
 
 export default function DashboardPage() {
   const { isAuthenticated, user } = useIsAuthenticated();
+  const [autoRefresh, setAutoRefresh] = useState(false);
   
   // Récupérer les vraies données des commandes depuis l'API
   // Tous les hooks doivent être appelés avant les retours conditionnels
-  const { data: commandes = [], isLoading, error } = useUserCommandes();
+  const { data: commandes = [], isLoading, error, refetch } = useUserCommandes();
+
+  // Auto-refresh toutes les 30 secondes si il y a des commandes en cours
+  useEffect(() => {
+    const commandesEnCours = commandes.filter(c => 
+      !['livree', 'annulee'].includes(c.statut)
+    );
+    
+    if (commandesEnCours.length > 0 && autoRefresh) {
+      const interval = setInterval(() => {
+        refetch();
+      }, 30000); // 30 secondes
+
+      return () => clearInterval(interval);
+    }
+  }, [commandes, autoRefresh, refetch]);
+
+  // Activer l'auto-refresh si il y a des commandes en cours
+  useEffect(() => {
+    const commandesEnCours = commandes.filter(c => 
+      !['livree', 'annulee'].includes(c.statut)
+    );
+    
+    if (commandesEnCours.length > 0) {
+      setAutoRefresh(true);
+    } else {
+      setAutoRefresh(false);
+    }
+  }, [commandes]);
 
   if (!isAuthenticated) {
     return (
@@ -394,6 +472,29 @@ export default function DashboardPage() {
             </Card>
           </div>
 
+          {/* Indicateur d'auto-refresh et bouton refresh */}
+          {commandesEnCours.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
+              {autoRefresh && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-orange-700 text-sm">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Actualisation automatique activée (toutes les 30 secondes)</span>
+                  </div>
+                </div>
+              )}
+              <Button 
+                variant="outline"
+                onClick={() => refetch()}
+                disabled={isLoading}
+                className="flex items-center gap-2 self-start sm:self-auto"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Actualiser
+              </Button>
+            </div>
+          )}
+
           {/* Commandes en cours */}
           {commandesEnCours.length > 0 && (
             <Card>
@@ -434,9 +535,9 @@ export default function DashboardPage() {
                           </div>
                           <div className="flex flex-row sm:flex-row items-center justify-between sm:justify-end gap-3 sm:gap-4">
                             <div className="text-left sm:text-right">
-                              <p className="font-semibold text-sm sm:text-base">{formatPrice(commande.total)}€</p>
+                              <p className="font-semibold text-sm sm:text-base">{formatPrice(commande.total)}$</p>
                               <p className="text-xs sm:text-sm text-gray-600">
-                                {commande.produits.length} produit(s)
+                                {(commande.produits.length + ((commande as any).menus?.length || 0))} article(s)
                               </p>
                             </div>
                             <CommandeDetailDialog commande={commande} />
@@ -501,9 +602,9 @@ export default function DashboardPage() {
                           </div>
                           <div className="flex flex-row sm:flex-row items-center justify-between sm:justify-end gap-3 sm:gap-4">
                             <div className="text-left sm:text-right">
-                              <p className="font-semibold text-sm sm:text-base">{formatPrice(commande.total)}€</p>
+                              <p className="font-semibold text-sm sm:text-base">{formatPrice(commande.total)}$</p>
                               <p className="text-xs sm:text-sm text-gray-600">
-                                {commande.produits.length} produit(s)
+                                {(commande.produits.length + ((commande as any).menus?.length || 0))} article(s)
                               </p>
                             </div>
                             <CommandeDetailDialog commande={commande} />

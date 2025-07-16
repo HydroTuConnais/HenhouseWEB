@@ -22,6 +22,8 @@ import {
   useCreatePublicCommande,
   type CreneauLivraison
 } from '@/components/hooks/public-commandes-hooks'
+import { useCreateCommande } from '@/components/hooks/commandes-hooks'
+import { useIsAuthenticated, useEntrepriseId } from '@/components/stores/auth-store'
 import { useCart } from '@/components/hooks/use-cart'
 import { getImageUrl } from '@/lib/config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,7 +38,7 @@ const JOURS_SEMAINE = [
 ]
 
 const HEURES_LIVRAISON = [
-  '8h', '9h', '10h', '11h', '12h', '13h', '14h', '15h', '16h', '17h', '18h', '19h', '20h'
+  '1h', '2h', '3h', '4h', '5h', '6h', '7h', '8h', '9h', '10h', '11h', '12h', '13h', '14h', '15h', '16h', '17h', '18h', '19h', '20h', '21h', '22h', '23h', '00h',
 ]
 
 export default function CommanderPage() {
@@ -44,19 +46,31 @@ export default function CommanderPage() {
   const [notes, setNotes] = useState('')
   const [creneaux, setCreneaux] = useState<CreneauLivraison[]>([])
   const [commandeEnvoyee, setCommandeEnvoyee] = useState(false)
+  const [numeroCommande, setNumeroCommande] = useState('')
+  const [typeLivraison, setTypeLivraison] = useState<'livraison' | 'click_and_collect'>('livraison')
 
-  const createMutation = useCreatePublicCommande()
+  const { isAuthenticated } = useIsAuthenticated()
+  const entrepriseId = useEntrepriseId()
+  const createPublicMutation = useCreatePublicCommande()
+  const createAuthMutation = useCreateCommande()
   const cart = useCart()
+
+  // Forcer la livraison si l'utilisateur est connecté
+  useEffect(() => {
+    if (isAuthenticated && typeLivraison === 'click_and_collect') {
+      setTypeLivraison('livraison')
+    }
+  }, [isAuthenticated])
 
   // Formater le numéro de téléphone
   const formatTelephone = (value: string) => {
     // Supprimer tous les caractères non numériques
     const numbers = value.replace(/\D/g, '')
     
-    // Limiter à 7 chiffres (555-XXXX)
+    // Limiter à 7 chiffres (XXX-XXXX)
     const truncated = numbers.slice(0, 7)
     
-    // Formater en 555-XXXX
+    // Formater en XXX-XXXX
     if (truncated.length <= 3) {
       return truncated
     } else {
@@ -107,10 +121,10 @@ export default function CommanderPage() {
       return
     }
 
-    // Vérifier le format du téléphone (doit être 555-XXXX)
+    // Vérifier le format du téléphone (doit être XXX-XXXX)
     const phoneRegex = /^\d{3}-\d{4}$/
     if (!phoneRegex.test(telephone)) {
-      toast.error('Le numéro de téléphone doit être au format 555-XXXX')
+      toast.error('Le numéro de téléphone doit être au format XXX-XXXX')
       return
     }
 
@@ -119,26 +133,72 @@ export default function CommanderPage() {
       return
     }
 
-    if (creneaux.length === 0 || creneaux.some(c => !c.jour_debut || !c.heure_debut || !c.jour_fin || !c.heure_fin)) {
+    // Pour les utilisateurs connectés, les créneaux sont obligatoires (toujours livraison)
+    // Pour les anonymes, les créneaux ne sont obligatoires que si livraison est sélectionnée
+    if ((isAuthenticated || typeLivraison === 'livraison') && (creneaux.length === 0 || creneaux.some(c => !c.jour_debut || !c.heure_debut || !c.jour_fin || !c.heure_fin))) {
       toast.error('Veuillez sélectionner au moins un créneau de livraison complet (début et fin)')
       return
     }
 
     // Créer une commande avec les items du panier
     try {
-      const commandeData = {
-        entreprise_id: 1, // ID par défaut - sera confirmé par téléphone
-        produits: cart.items.map(item => ({
-          produit_id: item.id,
-          quantite: item.quantite
-        })),
-        telephone_livraison: telephone,
-        creneaux_livraison: creneaux,
-        notes_commande: notes || undefined
-      }
+      let result
       
-      console.log('Envoi de la commande:', commandeData)
-      await createMutation.mutateAsync(commandeData)
+      if (isAuthenticated) {
+        // Utilisateur connecté - toujours livraison, vérifier s'il y a des menus
+        const hasMenus = cart.items.some(item => item.type === 'menu')
+        
+        if (hasMenus) {
+          // Si il y a des menus, utiliser l'API publique qui supporte les menus
+          const publicCommandeData = {
+            entreprise_id: entrepriseId!,
+            items: cart.items.map(item => ({
+              type: item.type,
+              itemId: item.id,
+              quantite: item.quantite
+            })),
+            telephone_livraison: telephone,
+            creneaux_livraison: creneaux, // Toujours livraison pour les connectés
+            notes_commande: notes || undefined,
+            type_livraison: 'livraison' // Forcé à livraison
+          }
+          
+          result = await createPublicMutation.mutateAsync(publicCommandeData)
+        } else {
+          // Seulement des produits - utiliser l'API authentifiée
+          const produits = cart.items.map(item => ({
+            produit_id: item.id,
+            quantite: item.quantite
+          }))
+          
+          const authCommandeData = {
+            produits,
+            telephone_livraison: telephone,
+            creneaux_livraison: creneaux, // Toujours livraison pour les connectés
+            notes_commande: notes || undefined,
+            entreprise_id: entrepriseId || undefined,
+            type_livraison: 'livraison' // Forcé à livraison
+          }
+          
+          result = await createAuthMutation.mutateAsync(authCommandeData)
+        }
+      } else {
+        // Utilisateur anonyme - utiliser l'API publique
+        const publicCommandeData = {
+          items: cart.items.map(item => ({
+            type: item.type, // 'menu' ou 'produit'
+            itemId: item.id,
+            quantite: item.quantite
+          })),
+          telephone_livraison: telephone,
+          creneaux_livraison: typeLivraison === 'livraison' ? creneaux : [],
+          notes_commande: notes || undefined,
+          type_livraison: typeLivraison
+        }
+        
+        result = await createPublicMutation.mutateAsync(publicCommandeData)
+      }
+      setNumeroCommande(result.numeroCommande || '')
       setCommandeEnvoyee(true)
       cart.clearCart() // Vider le panier après la commande
       toast.success('Commande envoyée avec succès!')
@@ -154,6 +214,8 @@ export default function CommanderPage() {
     setNotes('')
     setCreneaux([])
     setCommandeEnvoyee(false)
+    setNumeroCommande('')
+    setTypeLivraison('livraison')
   }
 
   if (commandeEnvoyee) {
@@ -166,15 +228,42 @@ export default function CommanderPage() {
             </div>
             <CardTitle className="text-2xl text-green-600">Commande confirmée !</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            {numeroCommande && (
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-blue-900 mb-2">Votre numéro de commande</h3>
+                <p className="text-2xl font-bold text-blue-600 font-mono">#{numeroCommande}</p>
+                <p className="text-sm text-blue-700 mt-2">
+                  Gardez ce numéro précieusement pour suivre votre commande
+                </p>
+              </div>
+            )}
             <p className="text-gray-600">
-              Votre commande a été transmise avec succès. Vous recevrez un appel sur le numéro {telephone} pour confirmer les détails de livraison.
+              Votre commande a été transmise avec succès. Vous recevrez un appel sur le numéro <strong>{telephone}</strong> pour confirmer les détails de livraison.
             </p>
-            <div className="flex justify-center space-x-4">
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <p className="text-orange-800 text-sm">
+                <strong>📞 Important :</strong> Assurez-vous que votre téléphone soit accessible. Notre équipe vous contactera dans les plus brefs délais.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Button 
+                onClick={() => {
+                  // Créer un lien direct avec les paramètres pré-remplis
+                  const params = new URLSearchParams({
+                    numero: numeroCommande,
+                    telephone: telephone
+                  });
+                  window.location.href = `/suivi-commande?${params.toString()}`;
+                }}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                🔍 Suivre ma commande
+              </Button>
               <Button onClick={nouvelleCommande} variant="outline">
                 Nouvelle commande
               </Button>
-              <Button onClick={() => window.location.href = '/'}>
+              <Button onClick={() => window.location.href = '/'} variant="outline">
                 Retour à l'accueil
               </Button>
             </div>
@@ -244,7 +333,70 @@ export default function CommanderPage() {
               </CardContent>
             </Card>
 
-            {/* Informations de livraison */}
+            {/* Type de livraison */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Package className="h-5 w-5" />
+                  <span>Mode de récupération</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div 
+                    className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                      typeLivraison === 'livraison' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => setTypeLivraison('livraison')}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="radio"
+                        checked={typeLivraison === 'livraison'}
+                        onChange={() => setTypeLivraison('livraison')}
+                        className="text-orange-600"
+                      />
+                      <div>
+                        <h4 className="font-medium">🚚 Livraison à domicile</h4>
+                        <p className="text-sm text-gray-600">Nous livrons directement chez vous</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div 
+                    className={`border rounded-lg p-4 transition-colors ${
+                      isAuthenticated 
+                        ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-50' 
+                        : typeLivraison === 'click_and_collect' 
+                          ? 'border-orange-500 bg-orange-50 cursor-pointer' 
+                          : 'border-gray-200 hover:border-gray-300 cursor-pointer'
+                    }`}
+                    onClick={() => !isAuthenticated && setTypeLivraison('click_and_collect')}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="radio"
+                        checked={typeLivraison === 'click_and_collect'}
+                        onChange={() => !isAuthenticated && setTypeLivraison('click_and_collect')}
+                        disabled={isAuthenticated}
+                        className="text-orange-600"
+                      />
+                      <div>
+                        <h4 className={`font-medium ${isAuthenticated ? 'text-gray-500' : ''}`}>
+                          🏪 Click & Collect
+                          {isAuthenticated && <span className="text-xs ml-2">(Non disponible pour les comptes connectés)</span>}
+                        </h4>
+                        <p className={`text-sm ${isAuthenticated ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Récupération sur place
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Informations de contact */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -255,28 +407,29 @@ export default function CommanderPage() {
               <CardContent>
                 <Input
                   type="tel"
-                  placeholder="555-1234"
+                  placeholder="123-4567"
                   value={telephone}
                   onChange={handleTelephoneChange}
                   className="text-lg"
                   maxLength={8}
                 />
                 <p className="text-sm text-gray-600 mt-2">
-                  Format: 555-XXXX - Nous vous appellerons pour confirmer les détails de livraison
+                  Format: XXX-XXXX - Nous vous appellerons pour confirmer les détails {typeLivraison === 'livraison' ? 'de livraison' : 'de récupération'}
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5" />
-                  <span>Créneaux de livraison souhaités</span>
-                </CardTitle>
-              </CardHeader>
+            {(isAuthenticated || typeLivraison === 'livraison') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Clock className="h-5 w-5" />
+                    <span>Créneaux de livraison souhaités</span>
+                  </CardTitle>
+                </CardHeader>
               <CardContent className="space-y-4">
                 {creneaux.map((creneau, index) => (
-                  <div key={index} className="border rounded-lg p-4 space-y-4">
+                  <div key={`creneau-${index}`} className="border rounded-lg p-4 space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="font-medium">Créneau {index + 1}</h4>
                       <Button
@@ -360,7 +513,8 @@ export default function CommanderPage() {
                   Ajouter un créneau de livraison
                 </Button>
               </CardContent>
-            </Card>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>
@@ -381,11 +535,11 @@ export default function CommanderPage() {
 
             <Button 
               onClick={validerCommande} 
-              disabled={createMutation.isPending || cart.items.length === 0}
+              disabled={(createPublicMutation.isPending || createAuthMutation.isPending) || cart.items.length === 0}
               size="lg"
-              className="w-full"
+              className="w-full bg-orange-600 hover:bg-orange-700"
             >
-              {createMutation.isPending ? 'Commande en cours...' : `Commander (${formatPrice(cart.total)}$)`}
+              {(createPublicMutation.isPending || createAuthMutation.isPending) ? 'Commande en cours...' : `Commander (${formatPrice(cart.total)}$)`}
             </Button>
           </div>
         </div>

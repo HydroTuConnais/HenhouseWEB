@@ -32,24 +32,24 @@ export const useChangePassword = () => {
   })
 }
 
-// Hook pour mettre à jour le profil utilisateur
-export const useUpdateProfile = () => {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: async (data: UpdateUserProfileRequest): Promise<{ message: string; user: any }> => {
-      const response = await apiRequest('/api/auth/profile', {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      })
-      return response
-    },
-    onSuccess: (data) => {
-      // Mettre à jour les données utilisateur dans le cache
-      queryClient.setQueryData(authQueryKeys.me, (oldData: any) => ({
-        ...oldData,
-        user: data.user
-      }))
-    },
-  })
-}
+// TODO: Hook pour mettre à jour le profil utilisateur (route à créer)
+// export const useUpdateProfile = () => {
+//   const queryClient = useQueryClient()
+//   
+//   return useMutation({
+//     mutationFn: async (data: UpdateUserProfileRequest): Promise<{ message: string; user: any }> => {
+//       const response = await apiRequest('/api/auth/profile', {
+//         method: 'PATCH',
+//         body: JSON.stringify(data),
+//       })
+//       return response
+//     },
+//     onSuccess: (data) => {
+//       // Mettre à jour les données utilisateur dans le cache
+//       queryClient.setQueryData(authQueryKeys.me, (oldData: any) => ({
+//         ...oldData,
+//         user: data.user
+//       }))
+//     },
+//   })
+// }

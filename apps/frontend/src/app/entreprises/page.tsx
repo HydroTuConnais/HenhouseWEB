@@ -78,7 +78,7 @@ export default function EntreprisesPage() {
           <p className="text-gray-600 mb-4">
             Vous devez être administrateur pour accéder à cette page.
           </p>
-          <Button onClick={() => window.location.href = '/auth/login'}>
+          <Button onClick={() => window.location.href = '/login'}>
             Se connecter
           </Button>
         </div>

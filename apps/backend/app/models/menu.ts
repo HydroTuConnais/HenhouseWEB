@@ -3,6 +3,7 @@ import type { ManyToMany } from '@adonisjs/lucid/types/relations'
 import { DateTime } from 'luxon'
 import Entreprise from './entreprise.js'
 import Produit from './produit.js'
+import Commande from './commande.js'
 
 export default class Menu extends BaseModel {
   @column({ isPrimary: true })
@@ -42,6 +43,12 @@ export default class Menu extends BaseModel {
     pivotColumns: ['quantite', 'ordre', 'disponible'],
   })
   declare produits: ManyToMany<typeof Produit>
+
+    @manyToMany(() => Commande, {
+    pivotTable: 'commande_menus',
+    pivotColumns: ['quantite', 'prix_unitaire'],
+  })
+  declare commandes: ManyToMany<typeof Commande>
 
   get fullImageUrl() {
     if (this.imageUrl) {

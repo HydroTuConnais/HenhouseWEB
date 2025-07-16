@@ -16,7 +16,7 @@ router
     router.get('/me', '#controllers/http/auth_controller.me').use(middleware.auth())
     router.patch('/change-password', '#controllers/http/auth_controller.changePassword').use(middleware.auth())
   })
-  .prefix('/auth')
+  .prefix('/api/auth')
 
 // Routes publiques (menus et produits non liés à des entreprises)
 router
@@ -99,7 +99,7 @@ router
     router.get('/commandes', '#controllers/http/commandes_controller.index')
     router.get('/commandes/:id', '#controllers/http/commandes_controller.show')
     router.post('/commandes', '#controllers/http/commandes_controller.store')
-    router.patch('/commandes/:id/statut', '#controllers/http/commandes_controller.updateStatus')
+    router.patch('/commandes/:id/statut', '#controllers/http/commandes_controller.updateStatut')
 
     // Uploads
     router.post('/upload/menu', '#controllers/http/upload_controller.uploadMenu')
@@ -135,6 +135,9 @@ router
     router.post('/produits', '#controllers/http/admin_controller.createProduit')
     router.put('/produits/:id', '#controllers/http/admin_controller.updateProduit')
     router.delete('/produits/:id', '#controllers/http/admin_controller.deleteProduit')
+
+    // Test Discord
+    router.post('/discord/test', '#controllers/http/discord_controller.test')
   })
   .prefix('/api/admin')
   .use(middleware.auth())

@@ -12,6 +12,23 @@ import router from '@adonisjs/core/services/router'
 import server from '@adonisjs/core/services/server'
 
 /**
+ * Initialize Discord service
+ */
+import DiscordService from '#services/discord_service'
+  if (process.argv.includes('serve') || !process.argv.includes('ace')) {
+    DiscordService.initialize().catch(console.error)
+  }
+
+// Fermer proprement Discord lors de l'arrêt
+process.on('SIGTERM', async () => {
+  await DiscordService.shutdown()
+})
+
+process.on('SIGINT', async () => {
+  await DiscordService.shutdown()
+})
+
+/**
  * The error handler is used to convert an exception
  * to an HTTP response.
  */

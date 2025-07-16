@@ -3,7 +3,6 @@ import vine from '@vinejs/vine'
 export const createUserValidator = vine.compile(
   vine.object({
     username: vine.string().trim().minLength(3).maxLength(50),
-    email: vine.string().email().normalizeEmail(),
     password: vine.string().minLength(6),
     role: vine.enum(['admin', 'entreprise']),
     entrepriseId: vine.number().optional().nullable(),

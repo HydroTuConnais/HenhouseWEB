@@ -28,7 +28,7 @@ export default function AdminDashboard() {
           </p>
           <Button 
             onClick={() => router.push('/')}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-orange-600 hover:bg-orange-700"
           >
             Retour à l'accueil
           </Button>
@@ -44,7 +44,7 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Shield className="h-8 w-8 text-blue-600" />
+              <Shield className="h-8 w-8 text-orange-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Dashboard Administrateur</h1>
                 <p className="text-gray-600">Gestion complète de la plateforme Hen House</p>

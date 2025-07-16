@@ -16,6 +16,26 @@ export interface CommandeProduit {
   }
 }
 
+export interface CommandeMenu {
+  id: number
+  nom: string
+  description?: string
+  prix: number
+  imageUrl?: string
+  fullImageUrl?: string
+  pivot: {
+    quantite: number
+    prix_unitaire: number
+  }
+  produits?: {
+    id: number
+    nom: string
+    description?: string
+    prix: number
+    categorie: string
+  }[]
+}
+
 export interface Commande {
   id: number
   numeroCommande: string
@@ -35,6 +55,7 @@ export interface Commande {
     nom: string
   }
   produits: CommandeProduit[]
+  menus?: CommandeMenu[]
 }
 
 export interface CreateCommandeRequest {
@@ -42,6 +63,16 @@ export interface CreateCommandeRequest {
     produit_id: number
     quantite: number
   }>
+  telephone_livraison?: string
+  creneaux_livraison?: Array<{
+    jour_debut: string
+    heure_debut: string
+    jour_fin: string
+    heure_fin: string
+  }>
+  notes_commande?: string
+  entreprise_id?: number
+  type_livraison?: 'livraison' | 'click_and_collect'
 }
 
 // Query keys pour les commandes

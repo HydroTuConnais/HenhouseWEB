@@ -3,7 +3,6 @@ import User from '#models/user'
 import Entreprise from '#models/entreprise'
 import Menu from '#models/menu'
 import Produit from '#models/produit'
-import hash from '@adonisjs/core/services/hash'
 import { createUserValidator, updateUserValidator } from '#validators/user'
 import { createEntrepriseValidator, updateEntrepriseValidator } from '#validators/entreprise'
 import { createMenuValidator, updateMenuValidator } from '#validators/menu'
@@ -29,10 +28,7 @@ export default class AdminController {
 
     const payload = await request.validateUsing(createUserValidator)
     
-    const user = await User.create({
-      ...payload,
-      password: await hash.make(payload.password),
-    })
+    const user = await User.create(payload)
 
     await user.load('entreprise')
     return response.created({ user })
@@ -46,9 +42,9 @@ export default class AdminController {
     const user = await User.findOrFail(params.id)
     const payload = await request.validateUsing(updateUserValidator)
 
+    // Gérer le mot de passe séparément pour assurer le hashage
     if (payload.password) {
-      payload.password = await hash.make(payload.password)
-    } else {
+      await user.updatePassword(payload.password)
       delete payload.password
     }
 

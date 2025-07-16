@@ -1,16 +1,50 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import "./globals.css";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { queryClient } from "@/lib/query-client";
-import { X, Shield } from "lucide-react";
+import { X, Shield, LogOut } from "lucide-react";
 import { Toaster } from "sonner";
-import { useIsAuthenticated } from "@/components/stores/auth-store";
+import { useIsAuthenticated, useLogout } from "@/components/stores/auth-store";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+
+// Supprimer les erreurs d'hydratation causées par les extensions de navigateur
+if (typeof window !== 'undefined') {
+  const originalError = console.error;
+  console.error = (...args) => {
+    const errorMessage = args[0]?.toString() || '';
+    if (
+      errorMessage.includes('Hydration failed') ||
+      errorMessage.includes('hydrated but some attributes') ||
+      errorMessage.includes('server rendered HTML') ||
+      errorMessage.includes('webcrx') ||
+      errorMessage.includes('cz-shortcut-listen')
+    ) {
+      return; // Ignorer ces erreurs d'hydratation
+    }
+    originalError(...args);
+  };
+}
 
 function DesktopNav() {
   const { isAuthenticated, user } = useIsAuthenticated();
+  const logoutMutation = useLogout();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        toast.success('Déconnexion réussie');
+        router.push('/');
+      },
+      onError: () => {
+        toast.error('Erreur lors de la déconnexion');
+      }
+    });
+  };
   
   return (
     <nav className="hidden md:flex gap-6 items-center">
@@ -20,18 +54,42 @@ function DesktopNav() {
       <Link href="/menu" className="hover:text-orange-600 transition-colors">
         Menu
       </Link>
-      {isAuthenticated && (
-        <Link href="/dashboard" className="hover:text-orange-600 transition-colors">
-          Dashboard
+      {!isAuthenticated && (
+        <Link href="/suivi-commande" className="hover:text-orange-600 transition-colors">
+          Recherche commande
         </Link>
       )}
-      {isAuthenticated && user?.role === 'admin' && (
+      {isAuthenticated ? (
+        <>
+          <Link href="/dashboard" className="hover:text-orange-600 transition-colors">
+            Dashboard
+          </Link>
+          {user?.role === 'admin' && (
+            <Link 
+              href="/admin" 
+              className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-sm font-medium"
+            >
+              <Shield size={16} />
+              Dashboard Admin
+            </Link>
+          )}
+          <Button
+            onClick={handleLogout}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            disabled={logoutMutation.isPending}
+          >
+            <LogOut size={16} />
+            {logoutMutation.isPending ? 'Déconnexion...' : 'Déconnexion'}
+          </Button>
+        </>
+      ) : (
         <Link 
-          href="/admin" 
-          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+          href="/login" 
+          className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
         >
-          <Shield size={16} />
-          Dashboard Admin
+          Connexion
         </Link>
       )}
     </nav>
@@ -41,6 +99,21 @@ function DesktopNav() {
 function MobileDrawer() {
   const [open, setOpen] = useState(false);
   const { isAuthenticated, user } = useIsAuthenticated();
+  const logoutMutation = useLogout();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        toast.success('Déconnexion réussie');
+        setOpen(false);
+        router.push('/');
+      },
+      onError: () => {
+        toast.error('Erreur lors de la déconnexion');
+      }
+    });
+  };
   
   return (
     <>
@@ -95,23 +168,50 @@ function MobileDrawer() {
             >
               Menu
             </Link>
-            {isAuthenticated && (
+            {!isAuthenticated && (
               <Link
-                href="/dashboard"
+                href="/suivi-commande"
                 className="hover:underline text-2xl font-semibold text-white"
                 onClick={() => setOpen(false)}
               >
-                Dashboard
+                Recherche commande
               </Link>
             )}
-            {isAuthenticated && user?.role === 'admin' && (
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="hover:underline text-2xl font-semibold text-white"
+                  onClick={() => setOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                {user?.role === 'admin' && (
+                  <Link
+                    href="/admin"
+                    className="hover:underline text-2xl font-semibold text-orange-300 flex items-center gap-2"
+                    onClick={() => setOpen(false)}
+                  >
+                    <Shield size={24} />
+                    Dashboard Admin
+                  </Link>
+                )}
+                <button
+                  onClick={handleLogout}
+                  disabled={logoutMutation.isPending}
+                  className="flex items-center gap-2 text-2xl font-semibold text-red-300 hover:underline"
+                >
+                  <LogOut size={24} />
+                  {logoutMutation.isPending ? 'Déconnexion...' : 'Déconnexion'}
+                </button>
+              </>
+            ) : (
               <Link
-                href="/admin"
-                className="hover:underline text-2xl font-semibold text-orange-300 flex items-center gap-2"
+                href="/login"
+                className="hover:underline text-2xl font-semibold text-orange-300"
                 onClick={() => setOpen(false)}
               >
-                <Shield size={24} />
-                Dashboard Admin
+                Connexion
               </Link>
             )}
           </nav>
@@ -127,11 +227,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr">
-      <body className="text-foreground min-h-screen flex flex-col bg-background">
+    <html lang="fr" suppressHydrationWarning>
+      <body 
+        className="text-foreground min-h-screen flex flex-col bg-background"
+        suppressHydrationWarning
+      >
         <QueryClientProvider client={queryClient}>
           <header className="w-full flex items-center justify-between px-4 py-3 border-b bg-white/80 sticky top-0 z-50">
-            <div className="font-bold text-xl tracking-tight">
+            <div className="font-bold text-xl tracking-tight text-orange-600">
               <Link href="/"> Hen House</Link>
             </div>
             <DesktopNav />
@@ -151,7 +254,6 @@ export default function RootLayout({
           <footer className="w-full py-4 text-center text-xs text-gray-500 border-t bg-white/80">
             &copy; {new Date().getFullYear()} Hen House. Tous droits réservés.
           </footer>
-          <ReactQueryDevtools initialIsOpen={false} />
         </QueryClientProvider>
       </body>
     </html>

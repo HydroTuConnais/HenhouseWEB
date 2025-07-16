@@ -36,7 +36,12 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
     },
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config)
+  // Construire l'URL en évitant les doubles slashes
+  const baseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+  const fullUrl = `${baseUrl}${cleanEndpoint}`
+
+  const response = await fetch(fullUrl, config)
   
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))

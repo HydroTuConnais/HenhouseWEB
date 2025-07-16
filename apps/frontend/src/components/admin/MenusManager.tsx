@@ -133,7 +133,7 @@ function MenuForm({ menu, onSave, onCancel }: MenuFormProps) {
       </div>
       
       <div>
-        <label className="block text-sm font-medium mb-1">Prix (€)</label>
+        <label className="block text-sm font-medium mb-1">Prix ($)</label>
         <Input
           type="number"
           step="0.01"
@@ -299,7 +299,7 @@ export default function MenusManager() {
           )}
         </TableCell>
         <TableCell className="font-medium text-base w-80">{produit.nom}</TableCell>
-        <TableCell className="text-base w-24">{produit.prix}€</TableCell>
+        <TableCell className="text-base w-24">{produit.prix}$</TableCell>
         <TableCell className="text-base w-28">{produit.pivot?.quantite || 1}</TableCell>
         <TableCell className="text-base w-28">
           <span className="font-medium text-lg bg-gray-100 px-2 py-1 rounded">{produit.pivot?.ordre || '-'}</span>
@@ -680,7 +680,7 @@ export default function MenusManager() {
                         <option value="">Sélectionner un produit</option>
                         {availableProduits.map((produit: AdminProduit) => (
                           <option key={produit.id} value={produit.id}>
-                            {produit.nom} - {produit.prix}€
+                            {produit.nom} - {produit.prix}$
                           </option>
                         ))}
                       </select>
@@ -879,7 +879,7 @@ export default function MenusManager() {
                   </TableCell>
                   <TableCell className="font-medium">{menu.nom}</TableCell>
                   <TableCell>{menu.description || '-'}</TableCell>
-                  <TableCell>{menu.prix}€</TableCell>
+                  <TableCell>{menu.prix}$</TableCell>
                   <TableCell>
                     {menu.produits && menu.produits.length > 0 ? (
                       <div className="flex items-center space-x-2">
@@ -888,7 +888,7 @@ export default function MenusManager() {
                             <div 
                               key={`${menu.id}-produit-${produit.id}-${index}`}
                               className="relative"
-                              title={`${produit.nom} - ${produit.prix}€${produit.pivot?.quantite ? ` (x${produit.pivot.quantite})` : ''}`}
+                              title={`${produit.nom} - ${produit.prix}$${produit.pivot?.quantite ? ` (x${produit.pivot.quantite})` : ''}`}
                             >
                               {produit.imageUrl ? (
                                 <img 

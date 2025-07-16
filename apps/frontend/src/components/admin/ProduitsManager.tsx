@@ -148,7 +148,7 @@ const ProduitForm = ({
       
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Prix (€)</label>
+          <label className="block text-sm font-medium mb-1">Prix ($)</label>
           <Input
             type="number"
             step="0.01"
@@ -330,7 +330,7 @@ export default function ProduitsManager() {
                     )}
                   </TableCell>
                   <TableCell className="font-medium">{produit.nom}</TableCell>
-                  <TableCell>{produit.prix}€</TableCell>
+                  <TableCell>{produit.prix}$</TableCell>
                   <TableCell>{produit.categorie || '-'}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
