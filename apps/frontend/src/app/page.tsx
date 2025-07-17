@@ -58,6 +58,7 @@ export default function HomePage() {
                 alt="Hen House - Délicieux plats"
                 width={600}
                 height={400}
+                priority
                 className="rounded-lg shadow-2xl w-full h-auto"
               />
             </div>

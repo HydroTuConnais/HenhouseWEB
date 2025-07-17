@@ -228,6 +228,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script src="https://cdn.tailwindcss.com"></script>
+      </head>
       <body 
         className="text-foreground min-h-screen flex flex-col bg-background"
         suppressHydrationWarning
