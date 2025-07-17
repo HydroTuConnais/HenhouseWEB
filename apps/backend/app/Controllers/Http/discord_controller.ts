@@ -11,6 +11,7 @@ export default class DiscordController {
       // Données de test
       const testData = {
         id: 999,
+        numero_commande: 'CMD-TEST-999',
         statut: 'en_attente' as const,
         total: 25.50,
         date_commande: DateTime.now().toString(),

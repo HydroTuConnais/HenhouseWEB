@@ -286,8 +286,9 @@ export default function MenuEntreprisesManager({ onClose }: MenuEntreprisesManag
                       <Image
                         src={getImageUrl(menu.imageUrl) || '/placeholder-food.jpg'}
                         alt={menu.nom}
-                        fill
-                        className="object-cover"
+                        width={64}
+                        height={64}
+                        className="object-cover w-full h-full"
                       />
                     </div>
                   </div>

@@ -56,6 +56,8 @@ export default function HomePage() {
               <Image
                 src="/landing-image.png"
                 alt="Hen House - Délicieux plats"
+                width={600}
+                height={400}
                 className="rounded-lg shadow-2xl w-full h-auto"
               />
             </div>

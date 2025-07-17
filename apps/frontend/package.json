@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:prod": "cross-env NODE_ENV=production next build",
     "start": "next start",
+    "start:prod": "cross-env NODE_ENV=production next start",
+    "server": "node server.js",
     "lint": "next lint",
     "export": "next export"
   },
@@ -46,6 +49,7 @@
     "@typescript-eslint/eslint-plugin": "^8.34.1",
     "@typescript-eslint/parser": "^8.34.1",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^7.0.3",
     "eslint": "^9.29.0",
     "eslint-config-next": "15.3.4",
     "prettier": "^3.5.3",

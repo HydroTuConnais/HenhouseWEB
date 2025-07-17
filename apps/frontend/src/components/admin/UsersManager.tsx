@@ -65,6 +65,17 @@ const UserForm = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validation côté client pour le mot de passe
+    if (!user && formData.password.length < 6) {
+      toast.error('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    if (user && formData.password && formData.password.length < 6) {
+      toast.error('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
     try {
       const payload: {
         username: string;
@@ -94,8 +105,8 @@ const UserForm = ({
         }
       }
       onSave();
-    } catch {
-      toast.error('Erreur lors de la sauvegarde');
+    } catch (error) {
+      toast.error('Erreur lors de la sauvegarde : ' + (error as Error).message);
     }
   };
 

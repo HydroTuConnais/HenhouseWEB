@@ -52,7 +52,9 @@ export default class Menu extends BaseModel {
 
   get fullImageUrl() {
     if (this.imageUrl) {
-      return this.imageUrl.startsWith('http') ? this.imageUrl : `/uploads/menus/${this.imageUrl}`
+      // Supprimer les paramètres Next.js d'optimisation d'image
+      const cleanUrl = this.imageUrl.split('?')[0].split('&')[0]
+      return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/menus/${cleanUrl}`
     }
     return null
   }

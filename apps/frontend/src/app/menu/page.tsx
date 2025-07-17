@@ -67,8 +67,9 @@ const ProductCard = ({
         <Image
           src={imageUrl}
           alt={item.nom}
-          fill
-          className="object-cover"
+          width={400}
+          height={300}
+          className="object-cover w-full h-full"
         />
       </div>
       <div className="p-4">
@@ -140,8 +141,9 @@ const CartModal = () => {
                     <Image
                       src={getCartImageUrl(item.imageUrl || "", item.type)}
                       alt={item.nom}
-                      fill
-                      className="object-cover"
+                      width={48}
+                      height={48}
+                      className="object-cover w-full h-full"
                     />
                   </div>
                   <div>

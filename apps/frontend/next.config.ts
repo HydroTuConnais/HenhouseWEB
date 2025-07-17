@@ -2,7 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
-  output: 'standalone',
   compress: true,
   poweredByHeader: false,
   images: {
@@ -26,9 +25,6 @@ const nextConfig: NextConfig = {
     ],
     formats: ['image/webp', 'image/avif'],
     minimumCacheTTL: 60,
-  },
-  experimental: {
-    optimizeCss: true,
   },
 };
 

@@ -28,9 +28,20 @@ export default class AdminController {
 
     const payload = await request.validateUsing(createUserValidator)
     
+    const existingUser = await User.findBy('username', payload.username)
+    
+    if (existingUser) {
+      return response.conflict({
+        message: "Ce nom d'utilisateur est déjà utilisé",
+        field: 'username',
+      })
+    }
+    
     const user = await User.create(payload)
 
-    await user.load('entreprise')
+    if (user.entrepriseId) {
+      await user.load('entreprise')
+    }
     return response.created({ user })
   }
 
@@ -130,16 +141,18 @@ export default class AdminController {
     const menusWithImages = menus.map((menu: any) => ({
       ...menu.serialize(),
       imageUrl: menu.imageUrl 
-        ? menu.imageUrl.startsWith('http')
-          ? menu.imageUrl
-          : `/uploads/menus/${menu.imageUrl}`
+        ? (() => {
+            const cleanUrl = menu.imageUrl.split('?')[0].split('&')[0]
+            return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/menus/${cleanUrl}`
+          })()
         : null,
       produits: menu.produits?.map((produit: any) => ({
         ...produit,
         imageUrl: produit.imageUrl 
-          ? produit.imageUrl.startsWith('http')
-            ? produit.imageUrl
-            : `/uploads/produits/${produit.imageUrl}`
+          ? (() => {
+              const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+              return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
+            })()
           : null,
       })) || [],
     }))
@@ -167,9 +180,10 @@ export default class AdminController {
     const menuWithImage = {
       ...menu.serialize(),
       imageUrl: menu.imageUrl 
-        ? menu.imageUrl.startsWith('http')
-          ? menu.imageUrl
-          : `/uploads/menus/${menu.imageUrl}`
+        ? (() => {
+            const cleanUrl = menu.imageUrl.split('?')[0].split('&')[0]
+            return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/menus/${cleanUrl}`
+          })()
         : null,
     }
     
@@ -198,9 +212,10 @@ export default class AdminController {
     const menuWithImage = {
       ...menu.serialize(),
       imageUrl: menu.imageUrl 
-        ? menu.imageUrl.startsWith('http')
-          ? menu.imageUrl
-          : `/uploads/menus/${menu.imageUrl}`
+        ? (() => {
+            const cleanUrl = menu.imageUrl.split('?')[0].split('&')[0]
+            return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/menus/${cleanUrl}`
+          })()
         : null,
     }
     
@@ -231,9 +246,10 @@ export default class AdminController {
     const produitsWithImages = produits.map((produit: any) => ({
       ...produit.serialize(),
       imageUrl: produit.imageUrl 
-        ? produit.imageUrl.startsWith('http')
-          ? produit.imageUrl
-          : `/uploads/produits/${produit.imageUrl}`
+        ? (() => {
+            const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+            return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
+          })()
         : null,
     }))
     
@@ -260,9 +276,10 @@ export default class AdminController {
     const produitWithImage = {
       ...produit.serialize(),
       imageUrl: produit.imageUrl 
-        ? produit.imageUrl.startsWith('http')
-          ? produit.imageUrl
-          : `/uploads/produits/${produit.imageUrl}`
+        ? (() => {
+            const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+            return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
+          })()
         : null,
     }
     
@@ -291,9 +308,10 @@ export default class AdminController {
     const produitWithImage = {
       ...produit.serialize(),
       imageUrl: produit.imageUrl 
-        ? produit.imageUrl.startsWith('http')
-          ? produit.imageUrl
-          : `/uploads/produits/${produit.imageUrl}`
+        ? (() => {
+            const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+            return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
+          })()
         : null,
     }
     
@@ -330,9 +348,10 @@ export default class AdminController {
       const produits = menu.produits.map((produit: any) => ({
         ...produit.serialize(),
         imageUrl: produit.imageUrl 
-          ? produit.imageUrl.startsWith('http')
-            ? produit.imageUrl
-            : `/uploads/produits/${produit.imageUrl}`
+          ? (() => {
+              const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+              return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
+            })()
           : null,
         pivot: {
           quantite: produit.$extras.pivot_quantite || 1,
