@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/components/hooks/use-cart";
 import { useMenus, useProduits, type Product, type Menu } from "@/components/hooks/api-hooks";
 import { useIsAuthenticated, useEntrepriseId } from "@/components/stores/auth-store";
-import { IMAGE_BASE_URL } from "@/lib/config";
+import { getImageUrl, IMAGE_BASE_URL } from "@/lib/config";
 
 // Fonction utilitaire pour formater le prix de manière sécurisée
 const formatPrice = (prix: string | number): string => {
@@ -41,31 +41,14 @@ const ProductCard = ({
     type: "menu" | "produit";
   }) => void;
 }) => {
-  // Construire l'URL de l'image de manière sécurisée
-  const getImageUrl = () => {
-    if (item.fullImageUrl) {
-      return item.fullImageUrl;
-    }
-    if (item.imageUrl) {
-      // Si l'URL commence déjà par http, l'utiliser telle quelle
-      if (item.imageUrl.startsWith('http')) {
-        return item.imageUrl;
-      }
-      // Déterminer le dossier selon le type
-      const folder = type === 'menu' ? 'menus' : 'produits';
-      // Construire l'URL complète
-      return `${IMAGE_BASE_URL}/uploads/${folder}/${item.imageUrl}`;
-    }
-    return "/placeholder-food.jpg";
-  };
-  
-  const imageUrl = getImageUrl();
+
+  const imageUrl = getImageUrl(item.fullImageUrl);
   
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm bg-white">
       <div className="relative h-48 w-full">
         <Image
-          src={imageUrl}
+          src={imageUrl ?? "/placeholder-food.jpg"}
           alt={item.nom}
           width={400}
           height={300}
@@ -83,7 +66,7 @@ const ProductCard = ({
               id: item.id,
               nom: item.nom,
               prix: item.prix,
-              imageUrl: imageUrl,
+              imageUrl: imageUrl ?? "",
               type: type as "menu" | "produit"
             })}
             className="bg-orange-500 hover:bg-orange-600"
