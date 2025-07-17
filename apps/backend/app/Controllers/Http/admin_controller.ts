@@ -142,7 +142,7 @@ export default class AdminController {
       ...menu.serialize(),
       imageUrl: menu.imageUrl 
         ? (() => {
-            const cleanUrl = menu.imageUrl.split('?')[0].split('&')[0]
+            const cleanUrl = menu.imageUrl.split('&')[0].split('?')[0]
             return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/menus/${cleanUrl}`
           })()
         : null,
@@ -150,7 +150,7 @@ export default class AdminController {
         ...produit,
         imageUrl: produit.imageUrl 
           ? (() => {
-              const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+              const cleanUrl = produit.imageUrl.split('&')[0].split('?')[0]
               return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
             })()
           : null,
@@ -181,7 +181,7 @@ export default class AdminController {
       ...menu.serialize(),
       imageUrl: menu.imageUrl 
         ? (() => {
-            const cleanUrl = menu.imageUrl.split('?')[0].split('&')[0]
+            const cleanUrl = menu.imageUrl.split('&')[0].split('?')[0]
             return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/menus/${cleanUrl}`
           })()
         : null,
@@ -213,7 +213,7 @@ export default class AdminController {
       ...menu.serialize(),
       imageUrl: menu.imageUrl 
         ? (() => {
-            const cleanUrl = menu.imageUrl.split('?')[0].split('&')[0]
+            const cleanUrl = menu.imageUrl.split('&')[0].split('?')[0]
             return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/menus/${cleanUrl}`
           })()
         : null,
@@ -247,7 +247,7 @@ export default class AdminController {
       ...produit.serialize(),
       imageUrl: produit.imageUrl 
         ? (() => {
-            const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+            const cleanUrl = produit.imageUrl.split('&')[0].split('?')[0]
             return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
           })()
         : null,
@@ -277,7 +277,7 @@ export default class AdminController {
       ...produit.serialize(),
       imageUrl: produit.imageUrl 
         ? (() => {
-            const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+            const cleanUrl = produit.imageUrl.split('&')[0].split('?')[0]
             return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
           })()
         : null,
@@ -309,7 +309,7 @@ export default class AdminController {
       ...produit.serialize(),
       imageUrl: produit.imageUrl 
         ? (() => {
-            const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+            const cleanUrl = produit.imageUrl.split('&')[0].split('?')[0]
             return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
           })()
         : null,
@@ -349,7 +349,7 @@ export default class AdminController {
         ...produit.serialize(),
         imageUrl: produit.imageUrl 
           ? (() => {
-              const cleanUrl = produit.imageUrl.split('?')[0].split('&')[0]
+              const cleanUrl = produit.imageUrl.split('&')[0].split('?')[0]
               return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
             })()
           : null,
