@@ -166,7 +166,7 @@ const CommandeDetailDialog = ({ commande }: { commande: Commande }) => {
           Voir détails
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto mx-2 sm:mx-auto">
+      <DialogContent className="max-w-[80vw] sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto mx-2 sm:mx-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm sm:text-base">
             <StatusIcon className="h-4 w-4 sm:h-5 sm:w-5" />

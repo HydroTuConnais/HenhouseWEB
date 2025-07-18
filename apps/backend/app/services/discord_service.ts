@@ -159,6 +159,7 @@ class DiscordService {
       const buttons = this.createCommandeButtons(commande.id, commande.statut)
       
       const message = await channel.send({ 
+        content: '<@&1264722214390075542>',
         embeds: [embed],
         components: buttons
       })

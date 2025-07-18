@@ -105,7 +105,7 @@ const CartModal = () => {
   
   return (
     <Dialog open={cart.isOpen} onOpenChange={cart.setCartOpen}>
-    <DialogContent className="fixed left-1/2 top-1/2 transform-none -translate-x-1/2 -translate-y-1/2 sm:max-w-[500px] w-full bg-white rounded-lg p-6 shadow-lg z-50">        
+    <DialogContent className="fixed sm:max-w-[500px] w-full bg-white rounded-lg p-6 shadow-lg z-50">        
         <DialogHeader>
           <DialogTitle>Votre panier ({cart.itemCount} articles)</DialogTitle>
         </DialogHeader>
