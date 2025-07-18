@@ -1,0 +1,25 @@
+$engine: 3
+name: Serveur avec Tablet Custom
+author: VotreNom
+version: 1.0.0
+description: Serveur FiveM avec tablette personnalisée
+
+tasks:
+  # Resources de base
+  - action: download_github
+    src: https://github.com/citizenfx/cfx-server-data
+    subpath: resources
+    dest: ./resources/[base]
+
+  # Votre mod tablette
+  - action: download_github
+    src: https://github.com/votre-repo/simple_tablet
+    dest: ./resources/[custom]/simple_tablet
+
+  # Configuration
+  - action: replace_string
+    file: ./server.cfg
+    search: "ensure mapmanager"
+    replace: |
+      ensure mapmanager
+      ensure simple_tablet
