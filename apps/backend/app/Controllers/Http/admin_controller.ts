@@ -147,13 +147,18 @@ export default class AdminController {
           })()
         : null,
       produits: menu.produits?.map((produit: any) => ({
-        ...produit,
+        ...produit.serialize(),
         imageUrl: produit.imageUrl 
           ? (() => {
               const cleanUrl = produit.imageUrl.split('&')[0].split('?')[0]
               return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
             })()
           : null,
+        pivot: {
+          quantite: produit.$extras.pivot_quantite || 1,
+          ordre: produit.$extras.pivot_ordre || null,
+          disponible: produit.$extras.pivot_disponible ?? true,
+        },
       })) || [],
     }))
     

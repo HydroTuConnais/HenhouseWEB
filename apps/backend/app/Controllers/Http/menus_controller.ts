@@ -462,7 +462,17 @@ export default class MenusController {
         .whereDoesntHave('entreprises', () => {}) // Menus sans entreprises associées
         .orderBy('nom', 'asc')
 
-      return response.ok({ menus })
+      // Ajouter fullImageUrl à chaque menu
+      const menusWithImages = menus.map((menu: any) => ({
+        ...menu.toJSON(),
+        fullImageUrl: menu.imageUrl
+          ? menu.imageUrl.startsWith('http')
+            ? menu.imageUrl
+            : `/uploads/menus/${menu.imageUrl}`
+          : null,
+      }))
+
+      return response.ok({ menus: menusWithImages })
     } catch (error) {
       console.error('Erreur lors de la récupération des menus publics:', error)
       return response.internalServerError({
@@ -483,7 +493,16 @@ export default class MenusController {
         .whereDoesntHave('entreprises', () => {}) // Vérifier qu'il n'est lié à aucune entreprise
         .firstOrFail()
 
-      return response.ok({ menu })
+      return response.ok({ 
+        menu: {
+          ...menu.toJSON(),
+          fullImageUrl: menu.imageUrl
+            ? menu.imageUrl.startsWith('http')
+              ? menu.imageUrl
+              : `/uploads/menus/${menu.imageUrl}`
+            : null,
+        }
+      })
     } catch (error) {
       if (error.name === 'E_ROW_NOT_FOUND') {
         return response.notFound({ message: 'Menu public non trouvé' })
