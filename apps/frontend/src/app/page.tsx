@@ -32,7 +32,7 @@ export default function HomePage() {
                 <Button 
                   asChild 
                   size="lg"
-                  className="bg-orange-600 hover:bg-orange-700 text-lg px-8 py-3"
+                  className="bg-orange-600 text-white hover:bg-orange-700 text-lg px-8 py-3"
                 >
                   <Link href="/menu">
                     <UtensilsCrossed className="h-5 w-5 mr-2" />
@@ -43,7 +43,7 @@ export default function HomePage() {
                   asChild 
                   size="lg" 
                   variant="outline"
-                  className="text-lg px-8 py-3 border-orange-600 text-orange-600 hover:bg-orange-50"
+                  className="text-lg px-8 py-3 border-orange-600 text-orange-600 hover:bg-orange-50 color-wg"
                 >
                   <Link href="/suivi-commande">
                     <Search className="h-5 w-5 mr-2" />

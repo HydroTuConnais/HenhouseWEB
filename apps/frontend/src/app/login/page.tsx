@@ -122,7 +122,7 @@ export default function LoginPage() {
         </div>
       </div>
       {/* Colonne droite : Image */}
-      <div className="hidden md:flex md:flex-[0.6] items-center justify-center">
+      <div className="hidden md:flex md:flex-[0.6] items-center justify-center bg-white">
         <Image
           src="/login-side.png"
           alt="Illustration Hen House"
