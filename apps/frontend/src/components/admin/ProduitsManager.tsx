@@ -172,7 +172,7 @@ const ProduitForm = ({
               <SelectItem value="plat">Plat</SelectItem>
               <SelectItem value="boisson">Boisson</SelectItem>
               <SelectItem value="dessert">Dessert</SelectItem>
-              <SelectItem value="accompagnement">Accompagnement</SelectItem>
+              <SelectItem value="alcool">Alcool</SelectItem>
             </SelectContent>
           </Select>
         </div>

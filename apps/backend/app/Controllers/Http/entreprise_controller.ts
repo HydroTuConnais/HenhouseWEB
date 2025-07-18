@@ -182,7 +182,17 @@ export default class EntrepriseController {
         })
         .where('active', true)
 
-      return response.ok({ menus })
+      // Ajouter fullImageUrl à chaque menu
+      const menusWithImages = menus.map((menu: any) => ({
+        ...menu.toJSON(),
+        fullImageUrl: menu.imageUrl
+          ? menu.imageUrl.startsWith('http')
+            ? menu.imageUrl
+            : `/uploads/menus/${menu.imageUrl}`
+          : null,
+      }))
+
+      return response.ok({ menus: menusWithImages })
     } catch (error) {
       console.error('Erreur lors de la récupération des menus:', error)
       return response.internalServerError({
@@ -253,7 +263,17 @@ export default class EntrepriseController {
 
       const produits = await entreprise.related('produits').query().where('active', true)
 
-      return response.ok({ produits })
+      // Ajouter fullImageUrl à chaque produit
+      const produitsWithImages = produits.map((produit: any) => ({
+        ...produit.toJSON(),
+        fullImageUrl: produit.imageUrl
+          ? produit.imageUrl.startsWith('http')
+            ? produit.imageUrl
+            : `/uploads/produits/${produit.imageUrl}`
+          : null,
+      }))
+
+      return response.ok({ produits: produitsWithImages })
     } catch (error) {
       return response.badRequest({
         message: 'Erreur lors de la récupération des produits',

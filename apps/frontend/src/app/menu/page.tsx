@@ -231,7 +231,7 @@ export default function MenuPage() {
     { id: 'plat', label: 'Plats', icon: '🍽️' },
     { id: 'boisson', label: 'Boissons', icon: '🥤' },
     { id: 'dessert', label: 'Desserts', icon: '🍰' },
-    { id: 'accompagnement', label: 'Accompagnements', icon: '🍟' }
+    { id: 'alcool', label: 'Alcools', icon: '🍷' }
   ];
 
   if (isLoading) {
