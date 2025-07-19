@@ -1,14 +1,14 @@
-import { defineConfig } from '@adonisjs/drive'
+import { defineConfig, services } from '@adonisjs/drive'
 
 export default defineConfig({
   default: 'fs',
 
   services: {
-    fs: {
-      driver: 'fs',
-      root: './public/uploads',
+    fs: services.fs({
+      location: './public/uploads',
+      visibility: 'public',
       serveFiles: true,
-      basePath: '/uploads',
-    },
+      routeBasePath: '/uploads',
+    }),
   },
 })

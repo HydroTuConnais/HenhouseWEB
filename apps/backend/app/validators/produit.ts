@@ -5,7 +5,7 @@ export const createProduitValidator = vine.compile(
     nom: vine.string().trim().minLength(1),
     description: vine.string().trim().optional(),
     prix: vine.number().positive(),
-    categories: vine.string().optional(), // Changé de categorie à categories pour être cohérent
+    categorie: vine.string().optional(),
     active: vine.boolean().optional(),
     imageUrl: vine.string().optional(),
     imagePath: vine.string().optional(),
@@ -35,7 +35,7 @@ export const updateProduitValidator = vine.compile(
     nom: vine.string().trim().minLength(1).optional(),
     description: vine.string().trim().optional(),
     prix: vine.number().positive().optional(),
-    categories: vine.string().optional(),
+    categorie: vine.string().optional(),
     active: vine.boolean().optional(),
     imageUrl: vine.string().optional(),
     imagePath: vine.string().optional(),

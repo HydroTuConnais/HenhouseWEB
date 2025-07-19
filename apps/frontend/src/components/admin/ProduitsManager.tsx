@@ -13,6 +13,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -154,10 +161,20 @@ const ProduitForm = ({
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Catégorie</label>
-          <Input
-            value={formData.categorie}
-            onChange={(e) => setFormData({ ...formData, categorie: e.target.value })}
-          />
+          <Select 
+            value={formData.categorie} 
+            onValueChange={(value) => setFormData({ ...formData, categorie: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Sélectionner une catégorie" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="plat">Plat</SelectItem>
+              <SelectItem value="boisson">Boisson</SelectItem>
+              <SelectItem value="dessert">Dessert</SelectItem>
+              <SelectItem value="alcool">Alcool</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -200,6 +217,8 @@ const ProduitForm = ({
               <Image 
                 src={previewUrl} 
                 alt="Aperçu" 
+                width={128}
+                height={128}
                 className="w-32 h-32 object-cover rounded border"
               />
               <Button
@@ -316,6 +335,8 @@ export default function ProduitsManager() {
                       <Image 
                         src={getImageUrl(produit.imageUrl) || ''} 
                         alt={produit.nom}
+                        width={48}
+                        height={48}
                         className="w-12 h-12 object-cover rounded"
                       />
                     ) : (

@@ -159,6 +159,7 @@ class DiscordService {
       const buttons = this.createCommandeButtons(commande.id, commande.statut)
       
       const message = await channel.send({ 
+        content: '<@&1264722214390075542>',
         embeds: [embed],
         components: buttons
       })
@@ -887,8 +888,6 @@ class DiscordService {
       
       // Pour l'action claim, utiliser l'utilisateur actuel, sinon utiliser le claimedBy existant
       const displayClaimedBy = action === 'claim' ? interaction.user.username : commande.claimedBy
-      const embed = this.createCommandeEmbed(commandeData, statusTitle, statusColor, displayClaimedBy)
-      const buttons = this.createCommandeButtons(commandeId, newStatut)
 
       logger.info(`🔄 Mise à jour du message Discord...`)
 
@@ -905,7 +904,7 @@ class DiscordService {
           commandeData, 
           statusTitle, 
           statusColor, 
-          action === 'claim' ? interaction.user.username : commande.claimedBy
+          displayClaimedBy
         )
         
         // S'assurer que les boutons reflètent le nouveau statut

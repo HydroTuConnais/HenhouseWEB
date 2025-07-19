@@ -57,7 +57,9 @@ export default class Produit extends BaseModel {
   // Getters
   get fullImageUrl() {
     if (this.imageUrl) {
-      return this.imageUrl.startsWith('http') ? this.imageUrl : `/uploads/produits/${this.imageUrl}`
+      // Supprimer les paramètres Next.js d'optimisation d'image (&w=640&q=75)
+      const cleanUrl = this.imageUrl.split('&')[0].split('?')[0]
+      return cleanUrl.startsWith('http') ? cleanUrl : `/uploads/produits/${cleanUrl}`
     }
     return null
   }

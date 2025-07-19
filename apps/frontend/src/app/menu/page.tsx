@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/components/hooks/use-cart";
 import { useMenus, useProduits, type Product, type Menu } from "@/components/hooks/api-hooks";
 import { useIsAuthenticated, useEntrepriseId } from "@/components/stores/auth-store";
-import { IMAGE_BASE_URL } from "@/lib/config";
+import { getImageUrl, IMAGE_BASE_URL } from "@/lib/config";
 
 // Fonction utilitaire pour formater le prix de manière sécurisée
 const formatPrice = (prix: string | number): string => {
@@ -41,34 +41,18 @@ const ProductCard = ({
     type: "menu" | "produit";
   }) => void;
 }) => {
-  // Construire l'URL de l'image de manière sécurisée
-  const getImageUrl = () => {
-    if (item.fullImageUrl) {
-      return item.fullImageUrl;
-    }
-    if (item.imageUrl) {
-      // Si l'URL commence déjà par http, l'utiliser telle quelle
-      if (item.imageUrl.startsWith('http')) {
-        return item.imageUrl;
-      }
-      // Déterminer le dossier selon le type
-      const folder = type === 'menu' ? 'menus' : 'produits';
-      // Construire l'URL complète
-      return `${IMAGE_BASE_URL}/uploads/${folder}/${item.imageUrl}`;
-    }
-    return "/placeholder-food.jpg";
-  };
-  
-  const imageUrl = getImageUrl();
+
+  const imageUrl = getImageUrl(item.fullImageUrl);
   
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm bg-white">
       <div className="relative h-48 w-full">
         <Image
-          src={imageUrl}
+          src={imageUrl ?? "/placeholder-food.jpg"}
           alt={item.nom}
-          fill
-          className="object-cover"
+          width={400}
+          height={300}
+          className="object-cover w-full h-full"
         />
       </div>
       <div className="p-4">
@@ -82,7 +66,7 @@ const ProductCard = ({
               id: item.id,
               nom: item.nom,
               prix: item.prix,
-              imageUrl: imageUrl,
+              imageUrl: imageUrl ?? "",
               type: type as "menu" | "produit"
             })}
             className="bg-orange-500 hover:bg-orange-600"
@@ -121,7 +105,7 @@ const CartModal = () => {
   
   return (
     <Dialog open={cart.isOpen} onOpenChange={cart.setCartOpen}>
-      <DialogContent className="sm:max-w-[500px]">
+    <DialogContent className="fixed sm:max-w-[500px] w-full bg-white rounded-lg p-6 shadow-lg z-50">        
         <DialogHeader>
           <DialogTitle>Votre panier ({cart.itemCount} articles)</DialogTitle>
         </DialogHeader>
@@ -140,8 +124,9 @@ const CartModal = () => {
                     <Image
                       src={getCartImageUrl(item.imageUrl || "", item.type)}
                       alt={item.nom}
-                      fill
-                      className="object-cover"
+                      width={48}
+                      height={48}
+                      className="object-cover w-full h-full"
                     />
                   </div>
                   <div>
@@ -234,6 +219,21 @@ export default function MenuPage() {
   const activeMenus = menus.filter((m: Menu) => m.active);
   const isLoading = menusLoading || produitsLoading;
 
+  // État pour le filtre de catégorie
+  const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
+
+  // Filtrer les produits par catégorie
+  const filteredProduits = selectedCategory 
+    ? produits.filter((p: Product) => p.active && p.categorie === selectedCategory)
+    : produits.filter((p: Product) => p.active);
+
+  const categories = [
+    { id: 'plat', label: 'Plats', icon: '🍽️' },
+    { id: 'boisson', label: 'Boissons', icon: '🥤' },
+    { id: 'dessert', label: 'Desserts', icon: '🍰' },
+    { id: 'alcool', label: 'Alcools', icon: '🍷' }
+  ];
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -318,9 +318,33 @@ export default function MenuPage() {
         </TabsContent>
         
         <TabsContent value="produits">
-          {produits.filter((p: Product) => p.active).length > 0 ? (
+          {/* Boutons de filtrage par catégorie */}
+          <div className="mb-6">
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant={selectedCategory === null ? "default" : "outline"}
+                onClick={() => setSelectedCategory(null)}
+                className={selectedCategory === null ? "bg-orange-500 hover:bg-orange-600" : ""}
+              >
+                Tous les produits
+              </Button>
+              {categories.map((category) => (
+                <Button
+                  key={category.id}
+                  variant={selectedCategory === category.id ? "default" : "outline"}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={selectedCategory === category.id ? "bg-orange-500 hover:bg-orange-600" : ""}
+                >
+                  <span className="mr-2">{category.icon}</span>
+                  {category.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {filteredProduits.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {produits.filter((p: Product) => p.active).map((produit: Product) => (
+              {filteredProduits.map((produit: Product) => (
                 <ProductCard 
                   key={produit.id} 
                   item={produit} 
@@ -334,11 +358,24 @@ export default function MenuPage() {
               <div className="text-gray-400 mb-4">
                 <ShoppingCart className="h-16 w-16 mx-auto mb-4" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucun produit public disponible</h3>
-              <p className="text-gray-500">
-                Tous les produits sont actuellement liés à des entreprises spécifiques.<br />
-                Connectez-vous pour accéder aux produits d&apos;entreprises.
-              </p>
+              {selectedCategory ? (
+                <>
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">
+                    Aucun produit dans la catégorie "{categories.find(c => c.id === selectedCategory)?.label}"
+                  </h3>
+                  <p className="text-gray-500">
+                    Essayez une autre catégorie ou consultez tous les produits.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucun produit public disponible</h3>
+                  <p className="text-gray-500">
+                    Tous les produits sont actuellement liés à des entreprises spécifiques.<br />
+                    Connectez-vous pour accéder aux produits d&apos;entreprises.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </TabsContent>

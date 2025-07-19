@@ -62,7 +62,7 @@ export default function LoginPage() {
   useEffect(() => {
     loginMutation.reset();
     setErrorMessage(""); // Réinitialiser l'erreur quand l'utilisateur tape
-  }, [username, password, loginMutation]);
+  }, [username, password]);
 
   return (
     <div className="flex flex-col min-h-screen md:flex-row">
@@ -122,10 +122,12 @@ export default function LoginPage() {
         </div>
       </div>
       {/* Colonne droite : Image */}
-      <div className="hidden md:flex md:flex-[0.6] items-center justify-center">
+      <div className="hidden md:flex md:flex-[0.6] items-center justify-center bg-white">
         <Image
           src="/login-side.png"
           alt="Illustration Hen House"
+          width={800}
+          height={600}
           className="object-cover rounded-xl shadow-2xl w-full mr-12 max-w-none max-h-none"
         />
       </div>

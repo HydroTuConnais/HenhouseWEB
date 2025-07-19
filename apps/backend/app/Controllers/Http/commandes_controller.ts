@@ -543,7 +543,7 @@ export default class CommandesController {
         .join('menus', 'menu_produits.menu_id', 'menus.id')
         .join('entreprise_menus', 'menus.id', 'entreprise_menus.menu_id')
         .whereIn('menu_produits.produit_id', produitIds)
-        .where('entreprise_menus.entreprise_id', payload.entreprise_id)
+        .where('entreprise_menus.entreprise_id', payload.entreprise_id || 0)
         .where('menus.active', true)
         .select('menus.id', 'menus.nom', 'menus.prix', 'menu_produits.produit_id')
 

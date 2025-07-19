@@ -228,12 +228,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script src="https://cdn.tailwindcss.com"></script>
+      </head>
       <body 
-        className="text-foreground min-h-screen flex flex-col bg-background"
+        className="text-foreground min-h-screen flex flex-col bg-background box-shadow-sm"
         suppressHydrationWarning
       >
         <QueryClientProvider client={queryClient}>
-          <header className="w-full flex items-center justify-between px-4 py-3 border-b bg-white/80 sticky top-0 z-50">
+          <header className="w-full flex items-center justify-between px-4 py-3 border-b bg-white sticky top-0 z-50">
             <div className="font-bold text-xl tracking-tight text-orange-600">
               <Link href="/"> Hen House</Link>
             </div>
@@ -242,7 +245,7 @@ export default function RootLayout({
               <MobileDrawer />
             </div>
           </header>
-          <main className="flex-1 flex flex-col">
+          <main className="flex-1 flex flex-col bg-white">
             {children}
             <Toaster
               position="bottom-right"

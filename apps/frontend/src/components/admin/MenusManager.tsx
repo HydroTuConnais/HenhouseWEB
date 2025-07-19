@@ -164,6 +164,8 @@ function MenuForm({ menu, onSave, onCancel }: MenuFormProps) {
               <Image 
                 src={previewUrl} 
                 alt="Aperçu" 
+                width={128}
+                height={128}
                 className="w-32 h-32 object-cover rounded-lg"
               />
               <button
@@ -292,6 +294,8 @@ export default function MenusManager() {
             <Image 
               src={getImageUrl(produit.imageUrl) || ''} 
               alt={produit.nom}
+              width={80}
+              height={80}
               className="w-20 h-20 object-cover rounded"
             />
           ) : (
@@ -861,6 +865,8 @@ export default function MenusManager() {
                             <Image 
                               src={getImageUrl(menu.imageUrl) || ''} 
                               alt={menu.nom}
+                              width={64}
+                              height={64}
                               className="w-16 h-16 object-cover rounded-lg hover:opacity-80 transition-opacity"
                             />
                           </div>
@@ -873,6 +879,8 @@ export default function MenusManager() {
                             <Image 
                               src={getImageUrl(menu.imageUrl) || ''} 
                               alt={menu.nom}
+                              width={500}
+                              height={384}
                               className="max-w-full max-h-96 object-contain rounded-lg"
                             />
                           </div>
@@ -901,6 +909,8 @@ export default function MenusManager() {
                                 <Image 
                                   src={getImageUrl(produit.imageUrl) || ''} 
                                   alt={produit.nom}
+                                  width={32}
+                                  height={32}
                                   className="w-8 h-8 object-cover rounded-full border-2 border-white"
                                 />
                               ) : (
