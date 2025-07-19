@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "build:prod": "cross-env NODE_ENV=production next build",
-    "start": "next dev -p 1338",
+    "start": "next dev -p 1339",
     "start:prod": "cross-env NODE_ENV=production next start",
     "server": "node server.js",
     "lint": "next lint",
