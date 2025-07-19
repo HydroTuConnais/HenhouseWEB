@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "build": "next build",
     "build:prod": "cross-env NODE_ENV=production next build",
-    "start": "next start",
+    "start": "next dev -p 1338",
     "start:prod": "cross-env NODE_ENV=production next start",
     "server": "node server.js",
     "lint": "next lint",
