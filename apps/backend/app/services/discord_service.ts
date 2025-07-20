@@ -787,6 +787,31 @@ class DiscordService {
           'commande_produits.prix_unitaire'
         )
 
+      // Récupérer les menus avec les données pivot
+      const commandeMenus = await Database
+        .from('commande_menus')
+        .join('menus', 'commande_menus.menu_id', 'menus.id')
+        .where('commande_menus.commande_id', commandeId)
+        .select(
+          'menus.nom',
+          'commande_menus.quantite',
+          'commande_menus.prix_unitaire'
+        )
+
+      // Combiner produits et menus pour Discord
+      const tousLesItems = [
+        ...commandeProduits.map((p: any) => ({
+          nom: p.nom,
+          quantite: p.quantite,
+          prix_unitaire: this.safeToNumber(p.prix_unitaire)
+        })),
+        ...commandeMenus.map((m: any) => ({
+          nom: m.nom,
+          quantite: m.quantite,
+          prix_unitaire: this.safeToNumber(m.prix_unitaire)
+        }))
+      ]
+
       const commandeData: CommandeData = {
         id: commande.id,
         numero_commande: commande.numeroCommande,
@@ -803,11 +828,7 @@ class DiscordService {
         entreprise: {
           nom: entreprise ? entreprise.nom : 'Commande publique'
         },
-        produits: commandeProduits.map((p: any) => ({
-          nom: p.nom,
-          quantite: p.quantite,
-          prix_unitaire: this.safeToNumber(p.prix_unitaire)
-        }))
+        produits: tousLesItems
       }
 
       // Créer le nouvel embed et les nouveaux boutons SEULEMENT pour la mise à jour
@@ -1041,6 +1062,31 @@ class DiscordService {
               'commande_produits.prix_unitaire'
             )
 
+          // Récupérer les menus avec les données pivot
+          const commandeMenus = await Database
+            .from('commande_menus')
+            .join('menus', 'commande_menus.menu_id', 'menus.id')
+            .where('commande_menus.commande_id', commande.id)
+            .select(
+              'menus.nom',
+              'commande_menus.quantite',
+              'commande_menus.prix_unitaire'
+            )
+
+          // Combiner produits et menus pour Discord
+          const tousLesItems = [
+            ...commandeProduits.map((p: any) => ({
+              nom: p.nom,
+              quantite: p.quantite,
+              prix_unitaire: this.safeToNumber(p.prix_unitaire)
+            })),
+            ...commandeMenus.map((m: any) => ({
+              nom: m.nom,
+              quantite: m.quantite,
+              prix_unitaire: this.safeToNumber(m.prix_unitaire)
+            }))
+          ]
+
           const commandeData: CommandeData = {
             id: commande.id,
             numero_commande: commande.numeroCommande,
@@ -1057,11 +1103,7 @@ class DiscordService {
             entreprise: {
               nom: entreprise ? entreprise.nom : 'Commande publique'
             },
-            produits: commandeProduits.map((p: any) => ({
-              nom: p.nom,
-              quantite: p.quantite,
-              prix_unitaire: this.safeToNumber(p.prix_unitaire)
-            }))
+            produits: tousLesItems
           }
 
           // Éviter de régénérer si le message a été récemment modifié par une interaction
@@ -1257,6 +1299,31 @@ class DiscordService {
           'commande_produits.prix_unitaire'
         )
 
+      // Récupérer les menus avec les données pivot
+      const commandeMenus = await Database
+        .from('commande_menus')
+        .join('menus', 'commande_menus.menu_id', 'menus.id')
+        .where('commande_menus.commande_id', commandeId)
+        .select(
+          'menus.nom',
+          'commande_menus.quantite',
+          'commande_menus.prix_unitaire'
+        )
+
+      // Combiner produits et menus pour Discord
+      const tousLesItems = [
+        ...commandeProduits.map((p: any) => ({
+          nom: p.nom,
+          quantite: p.quantite,
+          prix_unitaire: this.safeToNumber(p.prix_unitaire)
+        })),
+        ...commandeMenus.map((m: any) => ({
+          nom: m.nom,
+          quantite: m.quantite,
+          prix_unitaire: this.safeToNumber(m.prix_unitaire)
+        }))
+      ]
+
       const commandeData: CommandeData = {
         id: commande.id,
         numero_commande: commande.numeroCommande,
@@ -1273,11 +1340,7 @@ class DiscordService {
         entreprise: {
           nom: entreprise ? entreprise.nom : 'Commande publique'
         },
-        produits: commandeProduits.map((p: any) => ({
-          nom: p.nom,
-          quantite: p.quantite,
-          prix_unitaire: this.safeToNumber(p.prix_unitaire)
-        }))
+        produits: tousLesItems
       }
 
       // Forcer la mise à jour du message
