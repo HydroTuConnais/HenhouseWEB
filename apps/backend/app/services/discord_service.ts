@@ -761,6 +761,7 @@ class DiscordService {
       if (oldStatut !== newStatut) {
         commande.statut = newStatut as any
         await commande.save()
+      }
 
       // Recréer les données de commande et mettre à jour le message
       const { default: User } = await import('#models/user')
