@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
+        protocol: 'http',
+        hostname: 'localhost',
+        pathname: '/uploads/**',
+      },
+      {
         protocol: 'https',
         hostname: 'henhouse.hydro-dev.ovh',
         pathname: '/api/uploads/**',
