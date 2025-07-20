@@ -29,15 +29,22 @@ interface CommandeData {
 class DiscordService {
   private static instance: DiscordService | null = null
   private client: Client | null = null
-  private channelId: string | undefined
+  private channelId: string | undefined  // Canal principal pour les livraisons
+  private clickCollectChannelId: string | undefined  // Canal pour les click & collect
   private isConnected: boolean = false
   private readyPromise: Promise<void> | null = null
   private processedInteractions: Set<string> = new Set()
   private botId: string = Math.random().toString(36).substring(7)
+  private regenerationInterval: NodeJS.Timeout | null = null
+  private recentlyUpdatedMessages: Set<string> = new Set() // IDs des messages récemment modifiés
 
   constructor() {
     this.channelId = env.get('DISCORD_CHANNEL_ID')
-    logger.info(`🤖 Bot Discord instance créée avec ID: ${this.botId}`)
+    this.clickCollectChannelId = env.get('DISCORD_CLICK_COLLECT_CHANNEL_ID')
+    const nodeEnv = env.get('NODE_ENV', 'development')
+    logger.info(`🤖 Bot Discord instance créée avec ID: ${this.botId} (${nodeEnv})`)
+    logger.info(`📋 Canal livraisons: ${this.channelId}`)
+    logger.info(`🏪 Canal click & collect: ${this.clickCollectChannelId}`)
   }
 
   static getInstance(): DiscordService {
@@ -59,9 +66,17 @@ class DiscordService {
         return
       }
 
-      if (!this.channelId) {
-        logger.warn('Discord channel ID not configured, Discord service disabled')
+      if (!this.channelId && !this.clickCollectChannelId) {
+        logger.warn('Aucun canal Discord configuré, service Discord désactivé')
         return
+      }
+      
+      if (!this.channelId) {
+        logger.warn('Canal livraisons Discord non configuré')
+      }
+      
+      if (!this.clickCollectChannelId) {
+        logger.warn('Canal click & collect Discord non configuré')
       }
 
       // Si déjà connecté, ne pas reconnecter
@@ -102,6 +117,12 @@ class DiscordService {
       
       // Attendre que le bot soit vraiment prêt
       await this.readyPromise
+      
+      // Régénérer les messages Discord pour les commandes en cours
+      await this.regenerateActiveOrderMessages()
+      
+      // Optionnel : Régénération automatique toutes les 10 minutes
+      this.startPeriodicRegeneration()
       
     } catch (error) {
       logger.error('Erreur lors de l\'initialisation du service Discord:', error)
@@ -148,13 +169,19 @@ class DiscordService {
     }
 
     try {
-      const channel = await this.getChannel()
+      const channel = await this.getChannelForCommande(commande)
       if (!channel) {
         logger.error('❌ Impossible de récupérer le canal Discord')
         return
       }
 
-      logger.info(`📤 Envoi du message vers le canal ${this.channelId}...`)
+      console.log(`🔄 Check type livraison ${commande.type_livraison}`)
+
+      const targetChannelId = commande.type_livraison === 'click_and_collect' 
+        ? this.clickCollectChannelId 
+        : this.channelId
+      
+      logger.info(`📤 Envoi du message vers le canal ${targetChannelId} (${commande.type_livraison})...`)
       const embed = this.createCommandeEmbed(commande, '🆕 Nouvelle Commande', 0x00ff00)
       const buttons = this.createCommandeButtons(commande.id, commande.statut)
       
@@ -194,8 +221,11 @@ class DiscordService {
     if (!this.isReady()) return
 
     try {
-      // Essayer de trouver le thread de la commande
-      const thread = await this.findOrCreateThread(commande.numero_commande)
+      const channel = await this.getChannelForCommande(commande)
+      if (!channel) return
+
+      // Essayer de trouver le thread de la commande dans le bon canal
+      const thread = await this.findOrCreateThread(commande.numero_commande, undefined, channel)
       
       if (thread) {
         // Envoyer dans le thread
@@ -203,10 +233,7 @@ class DiscordService {
         await thread.send({ embeds: [actionEmbed] })
         logger.info(`📤 Message de mise à jour envoyé dans le thread pour la commande #${commande.id}`)
       } else {
-        // Fallback: envoyer dans le canal principal
-        const channel = await this.getChannel()
-        if (!channel) return
-
+        // Fallback: envoyer dans le canal approprié
         const color = this.getStatusColor(commande.statut)
         const embed = this.createCommandeEmbed(
           commande, 
@@ -230,8 +257,11 @@ class DiscordService {
     if (!this.isReady()) return
 
     try {
-      // Essayer de trouver le thread de la commande
-      const thread = await this.findOrCreateThread(commande.numero_commande)
+      const channel = await this.getChannelForCommande(commande)
+      if (!channel) return
+
+      // Essayer de trouver le thread de la commande dans le bon canal
+      const thread = await this.findOrCreateThread(commande.numero_commande, undefined, channel)
       
       if (thread) {
         // Envoyer dans le thread
@@ -239,10 +269,7 @@ class DiscordService {
         await thread.send({ embeds: [cancelEmbed] })
         logger.info(`📤 Message d'annulation envoyé dans le thread pour la commande #${commande.id}`)
       } else {
-        // Fallback: envoyer dans le canal principal
-        const channel = await this.getChannel()
-        if (!channel) return
-
+        // Fallback: envoyer dans le canal approprié
         const embed = this.createCommandeEmbed(commande, '❌ Commande Annulée', 0xff0000)
         await channel.send({ embeds: [embed] })
         logger.info(`Notification Discord d'annulation envoyée pour la commande #${commande.id}`)
@@ -265,31 +292,44 @@ class DiscordService {
   }
 
   /**
-   * Récupère le canal Discord
+   * Détermine le canal approprié selon le type de livraison
    */
-  private async getChannel(): Promise<TextChannel | null> {
+  private async getChannelForCommande(commande: CommandeData): Promise<TextChannel | null> {
+    const targetChannelId = commande.type_livraison === 'click_and_collect' 
+      ? this.clickCollectChannelId 
+      : this.channelId
+
+    logger.info(`🎯 Type livraison: ${commande.type_livraison}, Canal cible: ${targetChannelId}`)
+    
+    return this.getChannelById(targetChannelId)
+  }
+
+  /**
+   * Récupère le canal Discord par ID
+   */
+  private async getChannelById(channelId: string | undefined): Promise<TextChannel | null> {
     try {
-      if (!this.channelId) {
+      if (!channelId) {
         logger.error('❌ ID du canal Discord non configuré')
         return null
       }
 
-      logger.info(`🔍 Recherche du canal Discord avec ID: ${this.channelId}`)
+      logger.info(`🔍 Recherche du canal Discord avec ID: ${channelId}`)
       
       if (!this.client) {
         logger.error('❌ Client Discord non disponible')
         return null
       }
 
-      const channel = await this.client.channels.fetch(this.channelId)
+      const channel = await this.client.channels.fetch(channelId)
       
       if (!channel) {
-        logger.error(`❌ Canal Discord avec ID ${this.channelId} introuvable`)
+        logger.error(`❌ Canal Discord avec ID ${channelId} introuvable`)
         return null
       }
 
       if (!channel.isTextBased()) {
-        logger.error(`❌ Le canal ${this.channelId} n'est pas un canal textuel`)
+        logger.error(`❌ Le canal ${channelId} n'est pas un canal textuel`)
         return null
       }
 
@@ -305,6 +345,13 @@ class DiscordService {
   }
 
   /**
+   * Récupère le canal Discord (méthode de compatibilité)
+   */
+  private async getChannel(): Promise<TextChannel | null> {
+    return this.getChannelById(this.channelId)
+  }
+
+  /**
    * Convertit une valeur en number de manière sécurisée
    */
   private safeToNumber(value: any): number {
@@ -317,7 +364,7 @@ class DiscordService {
   /**
    * Crée un embed pour les actions de statut
    */
-  private createActionEmbed(action: string, username: string, numeroCommande: string, newStatut: string): EmbedBuilder {
+  private createActionEmbed(action: string, username: string, numeroCommande: string, newStatut: string, userId?: string): EmbedBuilder {
     let title = ''
     let description = ''
     let color = 0x0099ff
@@ -366,7 +413,7 @@ class DiscordService {
       .addFields(
         { name: '📋 N° Commande', value: numeroCommande, inline: true },
         { name: '📊 Nouveau Statut', value: `${this.getStatusEmoji(newStatut)} ${newStatut.toUpperCase()}`, inline: true },
-        { name: '👤 Par', value: username, inline: true }
+        { name: '👤 Par', value: userId ? `<@${userId}>` : username, inline: true }
       )
       .setTimestamp()
       .setFooter({ text: 'HenhouseWEB - Suivi de commandes' })
@@ -377,25 +424,25 @@ class DiscordService {
   /**
    * Trouve ou crée un thread pour une commande donnée
    */
-  private async findOrCreateThread(commandeNumero: string, messageId?: string): Promise<any> {
+  private async findOrCreateThread(commandeNumero: string, messageId?: string, channel?: TextChannel): Promise<any> {
     logger.info(`🎯 DEBUG findOrCreateThread: Recherche thread pour commande ${commandeNumero}, messageId: ${messageId}`)
     
     try {
-      const channel = await this.getChannel()
-      if (!channel) {
+      const targetChannel = channel || await this.getChannel()
+      if (!targetChannel) {
         logger.error(`🎯 DEBUG findOrCreateThread: ❌ Impossible de récupérer le canal`)
         return null
       }
 
-      logger.info(`🎯 DEBUG findOrCreateThread: Canal récupéré: ${channel.id}`)
+      logger.info(`🎯 DEBUG findOrCreateThread: Canal récupéré: ${targetChannel.id}`)
 
       // Essayer de trouver un thread existant dans les threads actifs ET archivés
       let thread = null
       try {
         logger.info(`🎯 DEBUG findOrCreateThread: Récupération des threads...`)
         
-        const activeThreads = await channel.threads.fetchActive()
-        const archivedThreads = await channel.threads.fetchArchived()
+        const activeThreads = await targetChannel.threads.fetchActive()
+        const archivedThreads = await targetChannel.threads.fetchArchived()
         
         logger.info(`🎯 DEBUG findOrCreateThread: Threads actifs: ${activeThreads.threads.size}, archivés: ${archivedThreads.threads.size}`)
         
@@ -441,7 +488,7 @@ class DiscordService {
       if (!thread && messageId) {
         logger.info(`🎯 DEBUG findOrCreateThread: Pas de thread + messageId fourni, création...`)
         try {
-          const message = await channel.messages.fetch(messageId)
+          const message = await targetChannel.messages.fetch(messageId)
           logger.info(`🎯 DEBUG findOrCreateThread: Message récupéré: ${message?.id}`)
           
           if (message) {
@@ -644,6 +691,11 @@ class DiscordService {
     logger.info(`🎯 DEBUG: Âge de l'interaction: ${interactionAge}ms`)
     logger.info(`🎯 DEBUG: Timestamp actuel: ${Date.now()}, Timestamp interaction: ${interaction.createdTimestamp}`)
     
+    // Si l'interaction semble venir du futur (âge négatif), c'est un problème d'horloge système
+    if (interactionAge < 0) {
+      logger.warn(`⚠️ Décalage d'horloge détecté: l'interaction semble venir du futur de ${Math.abs(interactionAge)}ms`)
+    }
+    
     // Vérifier si l'interaction a déjà été traitée
     if (interaction.deferred || interaction.replied) {
       logger.warn(`⚠️ Interaction déjà traitée - deferred: ${interaction.deferred}, replied: ${interaction.replied}`)
@@ -656,14 +708,26 @@ class DiscordService {
       return
     }
     
+    // Vérifier si l'interaction provient d'un canal configuré pour ce serveur
+    const allowedChannels = [this.channelId, this.clickCollectChannelId].filter(Boolean)
+    if (!allowedChannels.includes(interaction.channelId)) {
+      logger.warn(`⚠️ [${this.botId}] Interaction depuis un canal non configuré: ${interaction.channelId}, canaux autorisés: ${allowedChannels.join(', ')}`)
+      this.processedInteractions.delete(interaction.id)
+      return
+    }
+    
     // Marquer l'interaction comme en cours de traitement
     this.processedInteractions.add(interaction.id)
     logger.info(`🎯 DEBUG: [${this.botId}] Interaction marquée comme en traitement`)
     
-    // Vérifier si l'interaction n'est pas trop ancienne (plus de 2 secondes)
-    // TEMPORAIREMENT DÉSACTIVÉ à cause du problème d'horloge
-    if (Math.abs(interactionAge) > 5000) { // Utiliser Math.abs et augmenter la tolérance
-      logger.warn(`⚠️ Interaction trop ancienne/future (${interactionAge}ms), abandon`)
+    // Vérifier si l'interaction n'est pas trop ancienne (plus de 10 secondes)
+    // Ignorer la vérification si décalage d'horloge détecté (âge négatif)
+    if (interactionAge > 0 && interactionAge > 10000) {
+      logger.warn(`⚠️ Interaction trop ancienne (${interactionAge}ms), abandon`)
+      this.processedInteractions.delete(interaction.id)
+      return
+    } else if (interactionAge < -10000) {
+      logger.warn(`⚠️ Décalage d'horloge trop important (${interactionAge}ms), abandon`)
       this.processedInteractions.delete(interaction.id)
       return
     }
@@ -676,8 +740,14 @@ class DiscordService {
         await interaction.deferReply({ flags: 64 }) // MessageFlags.Ephemeral
         logger.info(`🎯 DEBUG: ✅ Defer reply réussi !`)
       } catch (deferError: any) {
-        if (deferError.code === 10062) { // Unknown interaction
-          logger.warn(`⚠️ Interaction expirée avant defer, tentative de reply direct...`)
+        logger.error(`❌ Erreur defer reply:`, deferError)
+        if (deferError.code === 10062 || deferError.code === 10008) { // Unknown interaction ou message
+          logger.warn(`⚠️ Interaction expirée (code ${deferError.code}), abandon du traitement`)
+          this.processedInteractions.delete(interaction.id)
+          return
+        } else {
+          // Pour les autres erreurs, essayer un reply direct
+          logger.warn(`⚠️ Erreur defer (code ${deferError.code}), tentative de reply direct...`)
           try {
             await interaction.reply({ 
               content: '⏱️ Traitement en cours...', 
@@ -685,12 +755,10 @@ class DiscordService {
             })
             logger.info(`🎯 DEBUG: ✅ Reply direct réussi comme fallback`)
           } catch (fallbackError) {
-            logger.error(`❌ Impossible de répondre à l'interaction expirée:`, fallbackError)
+            logger.error(`❌ Impossible de répondre à l'interaction:`, fallbackError)
             this.processedInteractions.delete(interaction.id)
             return
           }
-        } else {
-          throw deferError // Re-lancer si ce n'est pas une expiration
         }
       }
       
@@ -914,6 +982,13 @@ class DiscordService {
           embeds: [updatedEmbed],
           components: updatedButtons
         })
+
+        // Marquer ce message comme récemment modifié pour éviter la régénération
+        this.recentlyUpdatedMessages.add(originalMessage.id)
+        setTimeout(() => {
+          this.recentlyUpdatedMessages.delete(originalMessage.id)
+        }, 2 * 60 * 1000) // Protéger pendant 2 minutes
+
         logger.info(`🔄 ✅ Message original mis à jour avec le nouveau statut: ${newStatut} et claimedBy: ${commande.claimedBy}`)
       } else {
         logger.warn(`⚠️ Impossible de mettre à jour le message original - message non trouvé`)
@@ -1019,7 +1094,7 @@ class DiscordService {
             
             try {
               // Créer un embed pour l'action
-              const actionEmbed = this.createActionEmbed(action, interaction.user.username, commande.numeroCommande, newStatut)
+              const actionEmbed = this.createActionEmbed(action, interaction.user.username, commande.numeroCommande, newStatut, interaction.user.id)
               await thread.send({ embeds: [actionEmbed] })
               logger.info(`📤 Message envoyé dans le thread: ${thread.name}`)
             } catch (sendError) {
@@ -1063,6 +1138,16 @@ class DiscordService {
       if (error instanceof Error) {
         logger.error(`   Message d'erreur: ${error.message}`)
         logger.error(`   Stack trace: ${error.stack}`)
+        
+        // Fallback pour interactions expirées : régénérer le message immédiatement
+        if (error.message.includes('10062') || error.message.includes('Unknown interaction')) {
+          const [action, commandeIdStr] = interaction.customId.split('_')
+          const commandeId = parseInt(commandeIdStr)
+          if (!isNaN(commandeId)) {
+            logger.info(`🔄 Tentative de régénération immédiate pour commande #${commandeId}`)
+            await this.regenerateSpecificMessage(commandeId)
+          }
+        }
       }
       logger.info(`🎯 DEBUG: État de l'interaction:`)
       logger.info(`🎯 DEBUG: - deferred: ${interaction.deferred}`)
@@ -1093,6 +1178,8 @@ class DiscordService {
         if (replyError instanceof Error) {
           logger.error(`🎯 DEBUG: Message erreur de réponse: ${replyError.message}`)
         }
+        // Si on ne peut pas répondre, c'est probablement que l'interaction a expiré
+        logger.warn(`⚠️ Impossible de répondre à l'interaction, probablement expirée`)
       }
     }
   }
@@ -1120,9 +1207,333 @@ class DiscordService {
   }
 
   /**
+   * Régénère les messages Discord pour toutes les commandes actives au redémarrage
+   */
+  public async regenerateActiveOrderMessages(): Promise<void> {
+    // Éviter la régénération si des interactions sont en cours de traitement
+    if (this.processedInteractions.size > 0) {
+      logger.warn(`⚠️ Régénération reportée: ${this.processedInteractions.size} interaction(s) en cours`)
+      return
+    }
+
+    try {
+      logger.info('🔄 Régénération des messages Discord pour les commandes actives...')
+      
+      // Importer les modèles nécessaires
+      const { default: Commande } = await import('#models/commande')
+      const { default: User } = await import('#models/user')
+      const { default: Entreprise } = await import('#models/entreprise')
+      const Database = (await import('@adonisjs/lucid/services/db')).default
+
+      // Récupérer toutes les commandes non terminées (du plus petit au plus grand ID)
+      const commandesActives = await Commande.query()
+        .whereNotIn('statut', ['livree', 'annulee'])
+        .orderBy('id', 'asc')
+
+      logger.info(`📋 ${commandesActives.length} commande(s) active(s) trouvée(s)`)
+
+      for (const commande of commandesActives) {
+        try {
+          // Construire les données de commande
+          let user = null
+          if (commande.userId) {
+            user = await User.find(commande.userId)
+          }
+          
+          const entreprise = commande.entrepriseId ? await Entreprise.find(commande.entrepriseId) : null
+          
+          const commandeProduits = await Database
+            .from('commande_produits')
+            .join('produits', 'commande_produits.produit_id', 'produits.id')
+            .where('commande_produits.commande_id', commande.id)
+            .select(
+              'produits.nom',
+              'commande_produits.quantite',
+              'commande_produits.prix_unitaire'
+            )
+
+          const commandeData: CommandeData = {
+            id: commande.id,
+            numero_commande: commande.numeroCommande,
+            statut: commande.statut,
+            total: this.safeToNumber(commande.total),
+            date_commande: commande.createdAt.toString(),
+            creneaux_livraison: commande.creneauxLivraison,
+            type_livraison: commande.typeLivraison,
+            user: {
+              email: user ? user.username : commande.telephoneLivraison || 'Client anonyme',
+              prenom: undefined,
+              nom: undefined
+            },
+            entreprise: {
+              nom: entreprise ? entreprise.nom : 'Commande publique'
+            },
+            produits: commandeProduits.map((p: any) => ({
+              nom: p.nom,
+              quantite: p.quantite,
+              prix_unitaire: this.safeToNumber(p.prix_unitaire)
+            }))
+          }
+
+          // Éviter de régénérer si le message a été récemment modifié par une interaction
+          if (commande.discordMessageId && this.recentlyUpdatedMessages.has(commande.discordMessageId)) {
+            logger.info(`⏭️ Message #${commande.id} ignoré (récemment modifié par interaction)`)
+            continue
+          }
+
+          // Essayer de mettre à jour l'ancien message, sinon créer un nouveau
+          const success = await this.updateOrRecreateMessage(commande, commandeData)
+          if (!success) {
+            await this.createNewOrderMessage(commande, commandeData)
+          }
+          
+          // Délai adaptatif pour éviter le rate limiting Discord
+          const rateLimitDelay = Math.min(commandesActives.length * 100, 2000)
+          await new Promise(resolve => setTimeout(resolve, rateLimitDelay))
+
+        } catch (commandeError) {
+          logger.error(`❌ Erreur lors de la régénération de la commande #${commande.id}:`, commandeError)
+        }
+      }
+
+      logger.info('✅ Régénération des messages Discord terminée')
+
+    } catch (error) {
+      logger.error('❌ Erreur lors de la régénération des messages Discord:', error)
+    }
+  }
+
+  /**
+   * Essaie de mettre à jour un message existant, sinon le supprime
+   */
+  private async updateOrRecreateMessage(commande: any, commandeData: CommandeData, forceUpdate: boolean = false): Promise<boolean> {
+    try {
+      const channel = await this.getChannelForCommande(commandeData)
+      if (!channel || !commande.discordMessageId) return false
+
+      // Essayer de récupérer l'ancien message
+      const oldMessage = await channel.messages.fetch(commande.discordMessageId)
+      if (!oldMessage) return false
+
+      // Optimisation : vérifier l'âge du message pour la régénération périodique
+      if (!forceUpdate) {
+        const messageAge = Date.now() - oldMessage.createdTimestamp
+        if (messageAge < 12 * 60 * 1000) { // Moins de 12 minutes
+          logger.debug(`⏭️ Message #${commande.id} ignoré (trop récent: ${Math.round(messageAge / 60000)}min)`)
+          return true // Considéré comme réussi, pas besoin de mise à jour
+        }
+      }
+
+      // Vérifier si le message est dans le bon canal (livraison vs click&collect)
+      const currentChannelId = oldMessage.channel.id
+      const expectedChannelId = commandeData.type_livraison === 'click_and_collect' 
+        ? this.clickCollectChannelId 
+        : this.channelId
+
+      if (currentChannelId !== expectedChannelId) {
+        // Le message est dans le mauvais canal, le supprimer et créer un nouveau
+        await oldMessage.delete()
+        logger.info(`🔄 Message déplacé de canal pour commande #${commande.id}`)
+        return false
+      }
+
+      // Mettre à jour le message existant (préserve les threads)
+      const statusTitle = this.getStatusTitle(commande.statut)
+      const statusColor = this.getStatusColor(commande.statut)
+      
+      const embed = this.createCommandeEmbed(
+        commandeData, 
+        statusTitle, 
+        statusColor, 
+        commande.claimedBy
+      )
+      const buttons = this.createCommandeButtons(commande.id, commande.statut)
+      
+      await oldMessage.edit({
+        embeds: [embed],
+        components: buttons
+      })
+
+      logger.info(`✅ Message mis à jour pour commande #${commande.id} (${commande.statut}) - threads préservés`)
+      return true
+
+    } catch (error) {
+      logger.warn(`⚠️ Impossible de mettre à jour le message pour commande #${commande.id}:`, error.message)
+      
+      // Essayer de supprimer l'ancien message si il existe mais ne peut pas être mis à jour
+      try {
+        const channel = await this.getChannelForCommande(commandeData)
+        if (channel && commande.discordMessageId) {
+          const oldMessage = await channel.messages.fetch(commande.discordMessageId)
+          if (oldMessage) {
+            await oldMessage.delete()
+            logger.info(`🗑️ Ancien message supprimé pour commande #${commande.id}`)
+          }
+        }
+      } catch (deleteError) {
+        logger.warn(`⚠️ Impossible de supprimer l'ancien message pour commande #${commande.id}`)
+      }
+      
+      return false
+    }
+  }
+
+  /**
+   * Crée un nouveau message Discord pour une commande
+   */
+  private async createNewOrderMessage(commande: any, commandeData: CommandeData): Promise<void> {
+    try {
+      const channel = await this.getChannelForCommande(commandeData)
+      if (!channel) return
+
+      const statusTitle = this.getStatusTitle(commande.statut)
+      const statusColor = this.getStatusColor(commande.statut)
+      
+      const embed = this.createCommandeEmbed(
+        commandeData, 
+        statusTitle, 
+        statusColor, 
+        commande.claimedBy
+      )
+      const buttons = this.createCommandeButtons(commande.id, commande.statut)
+      
+      const message = await channel.send({ 
+        embeds: [embed],
+        components: buttons
+      })
+
+      // Sauvegarder le nouvel ID de message
+      commande.discordMessageId = message.id
+      await commande.save()
+
+      logger.info(`✅ Nouveau message créé pour commande #${commande.id} (${commande.statut})`)
+
+    } catch (error) {
+      logger.error(`❌ Erreur lors de la création du message pour commande #${commande.id}:`, error)
+    }
+  }
+
+  /**
+   * Retourne le titre selon le statut
+   */
+  private getStatusTitle(statut: string): string {
+    switch (statut.toLowerCase()) {
+      case 'en_attente':
+        return '⏳ Commande En Attente'
+      case 'confirmee':
+        return '✅ Commande Confirmée'
+      case 'en_preparation':
+        return '👨‍🍳 Commande En Préparation'
+      case 'prete':
+        return '📦 Commande Prête'
+      default:
+        return '📋 Commande'
+    }
+  }
+
+  /**
+   * Régénère un message spécifique immédiatement
+   */
+  public async regenerateSpecificMessage(commandeId: number): Promise<boolean> {
+    try {
+      logger.info(`🔄 Régénération immédiate du message pour commande #${commandeId}`)
+      
+      // Importer les modèles nécessaires
+      const { default: Commande } = await import('#models/commande')
+      const { default: User } = await import('#models/user')
+      const { default: Entreprise } = await import('#models/entreprise')
+      const Database = (await import('@adonisjs/lucid/services/db')).default
+
+      // Récupérer la commande spécifique
+      const commande = await Commande.find(commandeId)
+      if (!commande || ['livree', 'annulee'].includes(commande.statut)) {
+        logger.warn(`⚠️ Commande #${commandeId} non trouvée ou terminée`)
+        return false
+      }
+
+      // Construire les données de commande
+      let user = null
+      if (commande.userId) {
+        user = await User.find(commande.userId)
+      }
+      
+      const entreprise = commande.entrepriseId ? await Entreprise.find(commande.entrepriseId) : null
+      
+      const commandeProduits = await Database
+        .from('commande_produits')
+        .join('produits', 'commande_produits.produit_id', 'produits.id')
+        .where('commande_produits.commande_id', commandeId)
+        .select(
+          'produits.nom',
+          'commande_produits.quantite',
+          'commande_produits.prix_unitaire'
+        )
+
+      const commandeData: CommandeData = {
+        id: commande.id,
+        numero_commande: commande.numeroCommande,
+        statut: commande.statut,
+        total: this.safeToNumber(commande.total),
+        date_commande: commande.createdAt.toString(),
+        creneaux_livraison: commande.creneauxLivraison,
+        type_livraison: commande.typeLivraison,
+        user: {
+          email: user ? user.username : commande.telephoneLivraison || 'Client anonyme',
+          prenom: undefined,
+          nom: undefined
+        },
+        entreprise: {
+          nom: entreprise ? entreprise.nom : 'Commande publique'
+        },
+        produits: commandeProduits.map((p: any) => ({
+          nom: p.nom,
+          quantite: p.quantite,
+          prix_unitaire: this.safeToNumber(p.prix_unitaire)
+        }))
+      }
+
+      // Forcer la mise à jour du message
+      const success = await this.updateOrRecreateMessage(commande, commandeData, true)
+      if (!success) {
+        await this.createNewOrderMessage(commande, commandeData)
+      }
+
+      logger.info(`✅ Message régénéré pour commande #${commandeId}`)
+      return true
+
+    } catch (error) {
+      logger.error(`❌ Erreur lors de la régénération spécifique pour commande #${commandeId}:`, error)
+      return false
+    }
+  }
+
+  /**
+   * Démarre la régénération périodique des messages (optionnel)
+   */
+  private startPeriodicRegeneration(): void {
+    // Régénérer toutes les 10 minutes pour maintenir les boutons fonctionnels
+    this.regenerationInterval = setInterval(async () => {
+      try {
+        logger.info('🔄 Régénération périodique des messages Discord...')
+        await this.regenerateActiveOrderMessages()
+      } catch (error) {
+        logger.error('❌ Erreur lors de la régénération périodique:', error)
+      }
+    }, 10 * 60 * 1000) // 10 minutes
+
+    logger.info('⏰ Régénération automatique activée (toutes les 10 minutes)')
+  }
+
+  /**
    * Ferme la connexion Discord
    */
   public async shutdown(): Promise<void> {
+    if (this.regenerationInterval) {
+      clearInterval(this.regenerationInterval)
+      this.regenerationInterval = null
+      logger.info('⏰ Régénération automatique arrêtée')
+    }
+
     if (this.client) {
       await this.client.destroy()
       this.isConnected = false
