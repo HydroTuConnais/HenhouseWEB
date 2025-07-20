@@ -492,7 +492,6 @@ export default class CommandesController {
             .where('active', true)
             .first()
           
-          console.log('DEBUG MENU TROUVE:', { item, menu, entrepriseId: payload.entreprise_id })
           if (menu) {
             const sousTotal = menu.prix * item.quantite
             total += sousTotal
@@ -519,13 +518,6 @@ export default class CommandesController {
           }
         }
       }
-      // LOG DEBUG
-      console.log('DEBUG COMMANDE:', {
-        menusAvecQuantite,
-        produitsAvecQuantite,
-        total,
-        items: (payload as any).items
-      })
     } else if (payload.produits) {
       // Fallback pour l'ancienne structure avec produits uniquement
       const produitIds = payload.produits.map((p: { produit_id: number }) => p.produit_id)
@@ -613,9 +605,7 @@ export default class CommandesController {
     })
 
     // Attacher les produits
-    console.log('DEBUG: Attachement des produits:', produitsAvecQuantite)
     for (const item of produitsAvecQuantite) {
-      console.log('DEBUG: Attachement produit:', item)
       await commande.related('produits').attach({
         [item.produitId]: {
           quantite: item.quantite,
@@ -625,9 +615,7 @@ export default class CommandesController {
     }
 
     // Attacher les menus
-    console.log('DEBUG: Attachement des menus:', menusAvecQuantite)
     for (const menu of menusAvecQuantite) {
-      console.log('DEBUG: Attachement menu:', menu)
       await commande.related('menus').attach({
         [menu.menuId]: {
           quantite: menu.quantite,
