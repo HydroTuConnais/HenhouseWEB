@@ -180,8 +180,12 @@ class DiscordService {
       const embed = this.createCommandeEmbed(commande, '🆕 Nouvelle Commande', 0x00ff00)
       const buttons = this.createCommandeButtons(commande.id, commande.statut)
       
+      const rolePing = commande.type_livraison === 'click_and_collect' 
+        ? '<@&1167430810295611412>' 
+        : '<@&1264722214390075542>'
+      
       const message = await channel.send({ 
-        content: '<@&1264722214390075542>',
+        content: rolePing,
         embeds: [embed],
         components: buttons
       })
