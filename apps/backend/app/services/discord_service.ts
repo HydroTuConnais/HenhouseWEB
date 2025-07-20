@@ -37,6 +37,7 @@ class DiscordService {
   private botId: string = Math.random().toString(36).substring(7)
   private regenerationInterval: NodeJS.Timeout | null = null
   private recentlyUpdatedMessages: Set<string> = new Set() // IDs des messages récemment modifiés
+  private interactionTimestamps: Map<string, number> = new Map() // Timestamps des interactions
 
   constructor() {
     this.channelId = env.get('DISCORD_CHANNEL_ID')
@@ -159,12 +160,9 @@ class DiscordService {
    * Envoie une notification de nouvelle commande
    */
   public async notifyNewCommande(commande: CommandeData): Promise<void> {
-    logger.info('🔄 Tentative d\'envoi de notification Discord...')
-    
-    // Assurer que le bot est prêt
     const isReady = await this.ensureReady()
     if (!isReady) {
-      logger.error('❌ Impossible de connecter le bot Discord')
+      logger.error('Impossible de connecter le bot Discord')
       return
     }
 
@@ -175,13 +173,10 @@ class DiscordService {
         return
       }
 
-      console.log(`🔄 Check type livraison ${commande.type_livraison}`)
-
       const targetChannelId = commande.type_livraison === 'click_and_collect' 
         ? this.clickCollectChannelId 
         : this.channelId
       
-      logger.info(`📤 Envoi du message vers le canal ${targetChannelId} (${commande.type_livraison})...`)
       const embed = this.createCommandeEmbed(commande, '🆕 Nouvelle Commande', 0x00ff00)
       const buttons = this.createCommandeButtons(commande.id, commande.statut)
       
@@ -203,14 +198,9 @@ class DiscordService {
         logger.error('Erreur lors de la sauvegarde de l\'ID du message Discord:', dbError)
       }
       
-      logger.info(`✅ Notification Discord envoyée avec succès ! Message ID: ${message.id}`)
+      logger.info(`Notification Discord envoyée - Message ID: ${message.id}`)
     } catch (error) {
-      logger.error('❌ Erreur lors de l\'envoi de la notification Discord:', error)
-      // Log plus détaillé de l'erreur
-      if (error instanceof Error) {
-        logger.error(`   Message: ${error.message}`)
-        logger.error(`   Stack: ${error.stack}`)
-      }
+      logger.error('Erreur lors de l\'envoi de la notification Discord:', error)
     }
   }
 
@@ -231,7 +221,7 @@ class DiscordService {
         // Envoyer dans le thread
         const actionEmbed = this.createActionEmbed('update', 'System', commande.numero_commande, commande.statut)
         await thread.send({ embeds: [actionEmbed] })
-        logger.info(`📤 Message de mise à jour envoyé dans le thread pour la commande #${commande.id}`)
+        logger.info(`Message de mise à jour envoyé dans le thread pour la commande #${commande.id}`)
       } else {
         // Fallback: envoyer dans le canal approprié
         const color = this.getStatusColor(commande.statut)
@@ -267,7 +257,7 @@ class DiscordService {
         // Envoyer dans le thread
         const cancelEmbed = this.createActionEmbed('cancel', 'System', commande.numero_commande, 'annulee')
         await thread.send({ embeds: [cancelEmbed] })
-        logger.info(`📤 Message d'annulation envoyé dans le thread pour la commande #${commande.id}`)
+        logger.info(`Message d'annulation envoyé dans le thread pour la commande #${commande.id}`)
       } else {
         // Fallback: envoyer dans le canal approprié
         const embed = this.createCommandeEmbed(commande, '❌ Commande Annulée', 0xff0000)
@@ -298,8 +288,6 @@ class DiscordService {
     const targetChannelId = commande.type_livraison === 'click_and_collect' 
       ? this.clickCollectChannelId 
       : this.channelId
-
-    logger.info(`🎯 Type livraison: ${commande.type_livraison}, Canal cible: ${targetChannelId}`)
     
     return this.getChannelById(targetChannelId)
   }
@@ -310,36 +298,29 @@ class DiscordService {
   private async getChannelById(channelId: string | undefined): Promise<TextChannel | null> {
     try {
       if (!channelId) {
-        logger.error('❌ ID du canal Discord non configuré')
+        logger.error('ID du canal Discord non configuré')
         return null
       }
 
-      logger.info(`🔍 Recherche du canal Discord avec ID: ${channelId}`)
-      
       if (!this.client) {
-        logger.error('❌ Client Discord non disponible')
+        logger.error('Client Discord non disponible')
         return null
       }
 
       const channel = await this.client.channels.fetch(channelId)
       
       if (!channel) {
-        logger.error(`❌ Canal Discord avec ID ${channelId} introuvable`)
+        logger.error(`Canal Discord ${channelId} introuvable`)
         return null
       }
 
       if (!channel.isTextBased()) {
-        logger.error(`❌ Le canal ${channelId} n'est pas un canal textuel`)
+        logger.error(`Canal ${channelId} n'est pas textuel`)
         return null
       }
-
-      logger.info(`✅ Canal Discord trouvé: ${channel.type}`)
       return channel as TextChannel
     } catch (error) {
-      logger.error('❌ Erreur lors de la récupération du canal Discord:', error)
-      if (error instanceof Error) {
-        logger.error(`   Message d'erreur: ${error.message}`)
-      }
+      logger.error('Erreur lors de la récupération du canal Discord:', error)
       return null
     }
   }
@@ -425,100 +406,45 @@ class DiscordService {
    * Trouve ou crée un thread pour une commande donnée
    */
   private async findOrCreateThread(commandeNumero: string, messageId?: string, channel?: TextChannel): Promise<any> {
-    logger.info(`🎯 DEBUG findOrCreateThread: Recherche thread pour commande ${commandeNumero}, messageId: ${messageId}`)
-    
     try {
       const targetChannel = channel || await this.getChannel()
-      if (!targetChannel) {
-        logger.error(`🎯 DEBUG findOrCreateThread: ❌ Impossible de récupérer le canal`)
-        return null
-      }
+      if (!targetChannel) return null
 
-      logger.info(`🎯 DEBUG findOrCreateThread: Canal récupéré: ${targetChannel.id}`)
-
-      // Essayer de trouver un thread existant dans les threads actifs ET archivés
+      // Chercher thread existant
       let thread = null
       try {
-        logger.info(`🎯 DEBUG findOrCreateThread: Récupération des threads...`)
-        
         const activeThreads = await targetChannel.threads.fetchActive()
         const archivedThreads = await targetChannel.threads.fetchArchived()
         
-        logger.info(`🎯 DEBUG findOrCreateThread: Threads actifs: ${activeThreads.threads.size}, archivés: ${archivedThreads.threads.size}`)
+        thread = activeThreads.threads.find(t => t.name.includes(commandeNumero)) ||
+                archivedThreads.threads.find(t => t.name.includes(commandeNumero))
         
-        // Lister tous les threads pour debug
-        activeThreads.threads.forEach((t, id) => {
-          logger.info(`🎯 DEBUG findOrCreateThread: Thread actif: "${t.name}" (ID: ${id})`)
-        })
-        
-        archivedThreads.threads.forEach((t, id) => {
-          logger.info(`🎯 DEBUG findOrCreateThread: Thread archivé: "${t.name}" (ID: ${id})`)
-        })
-        
-        // Chercher dans les threads actifs
-        logger.info(`🎯 DEBUG findOrCreateThread: Recherche pattern "${commandeNumero}"...`)
-        thread = activeThreads.threads.find(t => {
-          const match = t.name.includes(commandeNumero)
-          logger.info(`🎯 DEBUG findOrCreateThread: "${t.name}" match? ${match}`)
-          return match
-        })
-        
-        // Si pas trouvé, chercher dans les threads archivés
-        if (!thread) {
-          logger.info(`🎯 DEBUG findOrCreateThread: Pas trouvé dans actifs, recherche dans archivés...`)
-          thread = archivedThreads.threads.find(t => {
-            const match = t.name.includes(commandeNumero)
-            logger.info(`🎯 DEBUG findOrCreateThread: Archivé "${t.name}" match? ${match}`)
-            return match
-          })
-        }
-        
-        logger.info(`🔍 Recherche thread ${commandeNumero} - Actifs: ${activeThreads.threads.size}, Archivés: ${archivedThreads.threads.size}`)
         if (thread) {
-          logger.info(`✅ Thread existant trouvé: ${thread.name} (ID: ${thread.id})`)
-        } else {
-          logger.info(`🎯 DEBUG findOrCreateThread: ❌ Aucun thread trouvé avec pattern "CMD-${commandeNumero}"`)
+          return thread
         }
       } catch (error) {
-        logger.error('🎯 DEBUG findOrCreateThread: ❌ Erreur récupération threads:', error)
-        logger.error('🎯 DEBUG findOrCreateThread: Message:', error.message)
+        logger.error('Erreur récupération threads:', error)
       }
 
-      // Si aucun thread n'existe et qu'on a un messageId, essayer de créer un thread
-      if (!thread && messageId) {
-        logger.info(`🎯 DEBUG findOrCreateThread: Pas de thread + messageId fourni, création...`)
+      // Créer nouveau thread si messageId fourni
+      if (messageId) {
         try {
           const message = await targetChannel.messages.fetch(messageId)
-          logger.info(`🎯 DEBUG findOrCreateThread: Message récupéré: ${message?.id}`)
-          
           if (message) {
-            const threadName = `📋 Suivi Commande #${commandeNumero}`
-            logger.info(`🎯 DEBUG findOrCreateThread: Création thread "${threadName}"...`)
-            
             thread = await message.startThread({
-              name: threadName,
-              autoArchiveDuration: 1440, // 24 heures
+              name: `📋 Suivi Commande #${commandeNumero}`,
+              autoArchiveDuration: 1440,
               reason: 'Suivi des actions sur la commande'
             })
-            logger.info(`🧵 Thread créé: ${thread.name} (ID: ${thread.id})`)
-          } else {
-            logger.error(`🎯 DEBUG findOrCreateThread: ❌ Message non trouvé avec ID ${messageId}`)
           }
         } catch (threadError) {
-          logger.error('❌ Erreur lors de la création du thread:', threadError)
-          logger.error('🎯 DEBUG findOrCreateThread: Code:', threadError.code)
-          logger.error('🎯 DEBUG findOrCreateThread: Message:', threadError.message)
-          logger.error('🎯 DEBUG findOrCreateThread: Stack:', threadError.stack)
+          logger.error('Erreur création thread:', threadError.message)
         }
-      } else if (!thread && !messageId) {
-        logger.warn(`🎯 DEBUG findOrCreateThread: Pas de thread ET pas de messageId`)
       }
 
-      logger.info(`🎯 DEBUG findOrCreateThread: Résultat final: ${thread ? `Thread "${thread.name}" (${thread.id})` : 'null'}`)
       return thread
     } catch (error) {
-      logger.error('❌ Erreur lors de la recherche/création du thread:', error)
-      logger.error('🎯 DEBUG findOrCreateThread: Erreur générale:', error.message)
+      logger.error('Erreur findOrCreateThread:', error.message)
       return null
     }
   }
@@ -679,153 +605,96 @@ class DiscordService {
    * Gère les interactions de boutons
    */
   private async handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
-    logger.info(`🔄 [${this.botId}] Interaction reçue: ${interaction.customId} par ${interaction.user.username}`)
-    logger.info(`🎯 DEBUG: Interaction ID: ${interaction.id}`)
-    logger.info(`🎯 DEBUG: Guild ID: ${interaction.guildId}`)
-    logger.info(`🎯 DEBUG: Channel ID: ${interaction.channelId}`)
-    logger.info(`🎯 DEBUG: User ID: ${interaction.user.id}`)
-    logger.info(`🎯 DEBUG: État initial - deferred: ${interaction.deferred}, replied: ${interaction.replied}`)
     
-    // Vérifier l'âge de l'interaction
+    // Vérifications préliminaires
     const interactionAge = Date.now() - interaction.createdTimestamp
-    logger.info(`🎯 DEBUG: Âge de l'interaction: ${interactionAge}ms`)
-    logger.info(`🎯 DEBUG: Timestamp actuel: ${Date.now()}, Timestamp interaction: ${interaction.createdTimestamp}`)
-    
-    // Si l'interaction semble venir du futur (âge négatif), c'est un problème d'horloge système
-    if (interactionAge < 0) {
-      logger.warn(`⚠️ Décalage d'horloge détecté: l'interaction semble venir du futur de ${Math.abs(interactionAge)}ms`)
-    }
     
     // Vérifier si l'interaction a déjà été traitée
     if (interaction.deferred || interaction.replied) {
-      logger.warn(`⚠️ Interaction déjà traitée - deferred: ${interaction.deferred}, replied: ${interaction.replied}`)
       return
     }
     
-    // Vérifier si on a déjà traité cette interaction (déduplication)
+    // Éviter les doublons
     if (this.processedInteractions.has(interaction.id)) {
-      logger.warn(`⚠️ [${this.botId}] Interaction déjà traitée par cette instance: ${interaction.id}`)
       return
     }
     
-    // Vérifier si l'interaction provient d'un canal configuré pour ce serveur
+    // Vérifier le canal autorisé
     const allowedChannels = [this.channelId, this.clickCollectChannelId].filter(Boolean)
     if (!allowedChannels.includes(interaction.channelId)) {
-      logger.warn(`⚠️ [${this.botId}] Interaction depuis un canal non configuré: ${interaction.channelId}, canaux autorisés: ${allowedChannels.join(', ')}`)
-      this.processedInteractions.delete(interaction.id)
       return
     }
     
-    // Marquer l'interaction comme en cours de traitement
+    // Marquer comme en traitement
     this.processedInteractions.add(interaction.id)
-    logger.info(`🎯 DEBUG: [${this.botId}] Interaction marquée comme en traitement`)
+    this.interactionTimestamps.set(interaction.id, Date.now())
     
-    // Vérifier si l'interaction n'est pas trop ancienne (plus de 10 secondes)
-    // Ignorer la vérification si décalage d'horloge détecté (âge négatif)
+    // Vérifier l'âge de l'interaction
     if (interactionAge > 0 && interactionAge > 10000) {
-      logger.warn(`⚠️ Interaction trop ancienne (${interactionAge}ms), abandon`)
       this.processedInteractions.delete(interaction.id)
       return
     } else if (interactionAge < -10000) {
-      logger.warn(`⚠️ Décalage d'horloge trop important (${interactionAge}ms), abandon`)
       this.processedInteractions.delete(interaction.id)
       return
     }
     
     try {
-      logger.info(`🎯 DEBUG: Tentative de defer reply...`)
-      // Déférer la réponse immédiatement pour avoir plus de temps (15 minutes au lieu de 3 secondes)
-      
+      // Déférer la réponse pour avoir plus de temps (15 min au lieu de 3s)
       try {
-        await interaction.deferReply({ flags: 64 }) // MessageFlags.Ephemeral
-        logger.info(`🎯 DEBUG: ✅ Defer reply réussi !`)
+        await interaction.deferReply({ flags: 64 }) // Ephemeral
       } catch (deferError: any) {
-        logger.error(`❌ Erreur defer reply:`, deferError)
-        if (deferError.code === 10062 || deferError.code === 10008) { // Unknown interaction ou message
-          logger.warn(`⚠️ Interaction expirée (code ${deferError.code}), abandon du traitement`)
+        if (deferError.code === 10062 || deferError.code === 10008) {
           this.processedInteractions.delete(interaction.id)
           return
         } else {
-          // Pour les autres erreurs, essayer un reply direct
-          logger.warn(`⚠️ Erreur defer (code ${deferError.code}), tentative de reply direct...`)
+          // Fallback: reply direct
           try {
-            await interaction.reply({ 
-              content: '⏱️ Traitement en cours...', 
-              flags: 64 
-            })
-            logger.info(`🎯 DEBUG: ✅ Reply direct réussi comme fallback`)
+            await interaction.reply({ content: '⏱️ Traitement...', flags: 64 })
           } catch (fallbackError) {
-            logger.error(`❌ Impossible de répondre à l'interaction:`, fallbackError)
+            logger.error(`Impossible de répondre:`, fallbackError)
             this.processedInteractions.delete(interaction.id)
             return
           }
         }
       }
       
-      logger.info(`🎯 DEBUG: Parsing custom ID...`)
+      // Parser l'action et l'ID de commande
       const [action, commandeIdStr] = interaction.customId.split('_')
       const commandeId = parseInt(commandeIdStr)
 
-      logger.info(`🔍 Action: ${action}, ID Commande: ${commandeId}`)
-      logger.info(`🎯 DEBUG: Custom ID split result: action="${action}", commandeIdStr="${commandeIdStr}"`)
-
       if (isNaN(commandeId)) {
-        logger.error(`❌ ID de commande invalide: ${commandeIdStr}`)
-        logger.info(`🎯 DEBUG: Tentative d'edit reply pour erreur ID invalide...`)
-        await interaction.editReply({ 
-          content: '❌ ID de commande invalide'
-        })
-        logger.info(`🎯 DEBUG: ✅ Edit reply erreur réussi`)
+        logger.error(`ID invalide: ${commandeIdStr}`)
+        await interaction.editReply({ content: '❌ ID de commande invalide' })
         return
       }
       
-      logger.info(`🎯 DEBUG: Import du modèle Commande...`)
-      // Importer le modèle Commande ici pour éviter les dépendances circulaires
+      // Récupérer la commande
       const { default: Commande } = await import('#models/commande')
-      logger.info(`🎯 DEBUG: ✅ Modèle Commande importé`)
-      
-      logger.info(`🔎 Recherche de la commande ${commandeId}...`)
       const commande = await Commande.find(commandeId)
-      logger.info(`🎯 DEBUG: Résultat de la recherche: ${commande ? `trouvée (statut: ${commande.statut})` : 'non trouvée'}`)
       
       if (!commande) {
-        logger.error(`❌ Commande ${commandeId} non trouvée`)
-        logger.info(`🎯 DEBUG: Tentative d'edit reply pour commande non trouvée...`)
-        await interaction.editReply({ 
-          content: `❌ Commande #${commandeId} non trouvée`
-        })
-        logger.info(`🎯 DEBUG: ✅ Edit reply commande non trouvée réussi`)
+        logger.error(`Commande #${commandeId} non trouvée`)
+        await interaction.editReply({ content: `❌ Commande #${commandeId} non trouvée` })
         return
       }
 
       const oldStatut = commande.statut
       let newStatut = oldStatut
 
-      logger.info(`📊 Statut actuel: ${oldStatut}`)
 
       // Déterminer le nouveau statut selon l'action
-      logger.info(`🎯 DEBUG: Début du switch avec action: ${action}`)
       switch (action) {
         case 'claim':
-          logger.info(`🎯 DEBUG: Action claim détectée, statut actuel: ${commande.statut}`)
           if (commande.statut === 'en_attente') {
-            logger.info(`🎯 DEBUG: Statut en_attente, processing claim...`)
             commande.claimedBy = interaction.user.username
             commande.claimedAt = DateTime.now()
             newStatut = 'confirmee'
           } else if (commande.statut === 'confirmee' && commande.claimedBy) {
-            // Cas spécial: la commande est déjà claim mais le message Discord n'a pas été mis à jour
-            logger.info(`🔧 DEBUG: Commande déjà claim par ${commande.claimedBy}, réparation du message Discord...`)
-            newStatut = 'confirmee' // Garder le statut actuel
-            // Ne pas modifier claimedBy car c'est déjà fait
+            newStatut = 'confirmee' // Réparation message Discord
           } else {
-            logger.info(`🎯 DEBUG: Statut != en_attente et pas réparable, envoi message d'erreur`)
             await interaction.editReply({ 
               content: '❌ Cette commande ne peut plus être claim'
             })
-            logger.info(`🎯 DEBUG: ✅ EditReply erreur claim envoyé`)
-            
-            // IMPORTANT: Toujours nettoyer le cache même en cas d'erreur
             this.processedInteractions.delete(interaction.id)
             return
           }
@@ -835,8 +704,7 @@ class DiscordService {
           if (commande.statut === 'confirmee') {
             newStatut = 'en_preparation'
           } else if (commande.statut === 'en_preparation') {
-            logger.info(`🔧 DEBUG: Commande déjà en préparation, réparation du message Discord...`)
-            newStatut = 'en_preparation' // Garder le statut actuel
+            newStatut = 'en_preparation'
           } else {
             await interaction.editReply({ content: '❌ Cette commande ne peut pas être mise en préparation' })
             this.processedInteractions.delete(interaction.id)
@@ -848,8 +716,7 @@ class DiscordService {
           if (commande.statut === 'en_preparation') {
             newStatut = 'prete'
           } else if (commande.statut === 'prete') {
-            logger.info(`🔧 DEBUG: Commande déjà prête, réparation du message Discord...`)
-            newStatut = 'prete' // Garder le statut actuel
+            newStatut = 'prete'
           } else {
             await interaction.editReply({ content: '❌ Cette commande ne peut pas être marquée comme prête' })
             this.processedInteractions.delete(interaction.id)
@@ -861,8 +728,7 @@ class DiscordService {
           if (commande.statut === 'prete') {
             newStatut = 'livree'
           } else if (commande.statut === 'livree') {
-            logger.info(`🔧 DEBUG: Commande déjà livrée, réparation du message Discord...`)
-            newStatut = 'livree' // Garder le statut actuel
+            newStatut = 'livree'
           } else {
             await interaction.editReply({ content: '❌ Cette commande ne peut pas être marquée comme livrée' })
             this.processedInteractions.delete(interaction.id)
@@ -874,8 +740,7 @@ class DiscordService {
           if (!['annulee', 'livree'].includes(commande.statut)) {
             newStatut = 'annulee'
           } else if (commande.statut === 'annulee') {
-            logger.info(`🔧 DEBUG: Commande déjà annulée, réparation du message Discord...`)
-            newStatut = 'annulee' // Garder le statut actuel
+            newStatut = 'annulee'
           } else {
             await interaction.editReply({ content: '❌ Cette commande ne peut pas être annulée' })
             this.processedInteractions.delete(interaction.id)
@@ -884,30 +749,24 @@ class DiscordService {
           break
 
         default:
-          logger.error(`❌ Action non reconnue: ${action}`)
+          logger.error(`Action non reconnue: ${action}`)
           await interaction.editReply({ 
             content: '❌ Action non reconnue'
           })
           return
       }
 
-      logger.info(`🔄 Changement de statut: ${oldStatut} → ${newStatut}`)
 
       // Mettre à jour la commande seulement si le statut a changé
       if (oldStatut !== newStatut) {
         commande.statut = newStatut as any
         await commande.save()
-        logger.info(`💾 Commande sauvegardée avec le nouveau statut`)
-      } else {
-        logger.info(`🔧 Pas de changement de statut, réparation du message Discord uniquement`)
-      }
 
       // Recréer les données de commande et mettre à jour le message
       const { default: User } = await import('#models/user')
       const { default: Entreprise } = await import('#models/entreprise')
       const Database = (await import('@adonisjs/lucid/services/db')).default
 
-      logger.info(`🔄 Reconstruction des données de commande...`)
 
       // Pour les commandes publiques, userId peut être null
       let user = null
@@ -957,15 +816,11 @@ class DiscordService {
       // Pour l'action claim, utiliser l'utilisateur actuel, sinon utiliser le claimedBy existant
       const displayClaimedBy = action === 'claim' ? interaction.user.username : commande.claimedBy
 
-      logger.info(`🔄 Mise à jour du message Discord...`)
 
       // Mettre à jour SEULEMENT le message original (les boutons et le statut dans l'embed)
-      logger.info(`🎯 DEBUG: Début de la mise à jour du message original...`)
       const originalMessage = interaction.message
-      logger.info(`🎯 DEBUG: Message original récupéré: ${originalMessage ? 'OUI' : 'NON'}`)
       
       if (originalMessage) {
-        logger.info(`🎯 DEBUG: Tentative d'édition du message original...`)
         
         // S'assurer que l'embed reflète le nouveau statut et les informations de claim
         const updatedEmbed = this.createCommandeEmbed(
@@ -989,133 +844,64 @@ class DiscordService {
           this.recentlyUpdatedMessages.delete(originalMessage.id)
         }, 2 * 60 * 1000) // Protéger pendant 2 minutes
 
-        logger.info(`🔄 ✅ Message original mis à jour avec le nouveau statut: ${newStatut} et claimedBy: ${commande.claimedBy}`)
-      } else {
-        logger.warn(`⚠️ Impossible de mettre à jour le message original - message non trouvé`)
       }
 
-      // 🚨 DEBUG: Créer ou récupérer le thread associé au message et envoyer SEULEMENT le message dans le thread
-      logger.info(`🎯 DEBUG: Début de la gestion du thread pour l'action "${action}" sur commande #${commande.numeroCommande}`)
+      // Créer ou récupérer le thread associé au message et envoyer SEULEMENT le message dans le thread
       try {
         let thread = null
-
-        logger.info(`🎯 DEBUG: Message original ID: ${originalMessage?.id}`)
-        logger.info(`🎯 DEBUG: Channel type: ${originalMessage?.channel?.type}`)
-        logger.info(`🎯 DEBUG: Channel ID: ${originalMessage?.channel?.id}`)
 
         if (originalMessage && originalMessage.id) {
           // Essayer de récupérer le thread existant de plusieurs façons
           try {
             const channel = originalMessage.channel
-            logger.info(`🎯 DEBUG: Canal récupéré, vérification si c'est un canal avec threads...`)
             
             if ('threads' in channel) {
-              logger.info(`🎯 DEBUG: ✅ Le canal supporte les threads, récupération...`)
-              
               // Récupérer tous les threads (actifs ET archivés)
               const activeThreads = await channel.threads.fetchActive()
-              logger.info(`🎯 DEBUG: Threads actifs récupérés: ${activeThreads.threads.size}`)
-              
-              // Lister tous les threads actifs pour debug
-              activeThreads.threads.forEach((t, id) => {
-                logger.info(`🎯 DEBUG: Thread actif: "${t.name}" (ID: ${id})`)
-              })
-              
               const archivedThreads = await channel.threads.fetchArchived()
-              logger.info(`🎯 DEBUG: Threads archivés récupérés: ${archivedThreads.threads.size}`)
-              
-              // Lister tous les threads archivés pour debug
-              archivedThreads.threads.forEach((t, id) => {
-                logger.info(`🎯 DEBUG: Thread archivé: "${t.name}" (ID: ${id})`)
-              })
               
               // Chercher dans les threads actifs
-              logger.info(`🎯 DEBUG: Recherche du pattern "${commande.numeroCommande}" dans les threads actifs...`)
-              thread = activeThreads.threads.find(t => {
-                const match = t.name.includes(commande.numeroCommande)
-                logger.info(`🎯 DEBUG: Thread "${t.name}" match ${commande.numeroCommande}? ${match}`)
-                return match
-              })
+              thread = activeThreads.threads.find(t => t.name.includes(commande.numeroCommande))
               
               // Si pas trouvé, chercher dans les threads archivés
               if (!thread) {
-                logger.info(`🎯 DEBUG: Recherche du pattern "${commande.numeroCommande}" dans les threads archivés...`)
-                thread = archivedThreads.threads.find(t => {
-                  const match = t.name.includes(commande.numeroCommande)
-                  logger.info(`🎯 DEBUG: Thread archivé "${t.name}" match ${commande.numeroCommande}? ${match}`)
-                  return match
-                })
+                thread = archivedThreads.threads.find(t => t.name.includes(commande.numeroCommande))
               }
-              
-              logger.info(`🔍 Threads actifs: ${activeThreads.threads.size}, archivés: ${archivedThreads.threads.size}`)
-              if (thread) {
-                logger.info(`✅ Thread existant trouvé: ${thread.name} (ID: ${thread.id})`)
-              } else {
-                logger.info(`🎯 DEBUG: ❌ Aucun thread trouvé avec le pattern "CMD-${commande.numeroCommande}"`)
-              }
-            } else {
-              logger.error(`🎯 DEBUG: ❌ Le canal ne supporte pas les threads`)
             }
           } catch (error) {
-            logger.error('🎯 DEBUG: ❌ Erreur lors de la récupération des threads:', error)
-            logger.error('🎯 DEBUG: Détails de l\'erreur:', error.message)
-            logger.error('🎯 DEBUG: Stack:', error.stack)
+            logger.error('Erreur lors de la récupération des threads:', error)
           }
 
           // Si aucun thread n'existe, en créer un SEULEMENT lors du premier claim
           if (!thread && action === 'claim') {
-            logger.info(`🎯 DEBUG: Aucun thread trouvé ET action = "claim", tentative de création...`)
             try {
               const threadName = `📋 Suivi Commande #${commande.numeroCommande}`
-              logger.info(`🎯 DEBUG: Nom du thread à créer: "${threadName}"`)
-              logger.info(`🎯 DEBUG: Message utilisé pour créer le thread: ${originalMessage.id}`)
               
               thread = await originalMessage.startThread({
                 name: threadName,
                 autoArchiveDuration: 1440, // 24 heures
                 reason: 'Suivi des actions sur la commande'
               })
-              logger.info(`🧵 Thread créé avec succès: ${thread.name} (ID: ${thread.id})`)
+              logger.info(`Thread créé avec succès: ${thread.name} (ID: ${thread.id})`)
             } catch (threadError) {
-              logger.error('❌ Erreur lors de la création du thread:', threadError)
-              logger.error('🎯 DEBUG: Code d\'erreur:', threadError.code)
-              logger.error('🎯 DEBUG: Message d\'erreur:', threadError.message)
-              logger.error('🎯 DEBUG: Stack complet:', threadError.stack)
+              logger.error('Erreur lors de la création du thread:', threadError)
             }
-          } else if (!thread && action !== 'claim') {
-            logger.warn(`🎯 DEBUG: Aucun thread trouvé mais action="${action}" (pas claim), pas de création`)
-          } else if (thread) {
-            logger.info(`🎯 DEBUG: Thread déjà trouvé, pas besoin de créer`)
           }
 
           // Envoyer SEULEMENT le message dans le thread, PAS dans le channel principal
           if (thread) {
-            logger.info(`🎯 DEBUG: Tentative d'envoi du message dans le thread...`)
-            
             try {
               // Créer un embed pour l'action
               const actionEmbed = this.createActionEmbed(action, interaction.user.username, commande.numeroCommande, newStatut, interaction.user.id)
               await thread.send({ embeds: [actionEmbed] })
-              logger.info(`📤 Message envoyé dans le thread: ${thread.name}`)
+              logger.info(`Message envoyé dans le thread: ${thread.name}`)
             } catch (sendError) {
-              logger.error('🎯 DEBUG: ❌ Erreur lors de l\'envoi du message dans le thread:', sendError)
-              logger.error('🎯 DEBUG: Détails:', sendError.message)
+              logger.error('Erreur lors de l\'envoi du message dans le thread:', sendError)
             }
-          } else {
-            logger.warn(`⚠️ Aucun thread trouvé/créé pour la commande #${commande.numeroCommande}`)
-            logger.warn(`🎯 DEBUG: Action: ${action}, Thread null: ${thread === null}`)
           }
-        } else {
-          logger.error(`🎯 DEBUG: ❌ Pas de message original ou ID manquant`)
-          logger.error(`🎯 DEBUG: originalMessage: ${!!originalMessage}`)
-          logger.error(`🎯 DEBUG: originalMessage.id: ${originalMessage?.id}`)
         }
       } catch (threadError) {
-        logger.error('❌ Erreur générale lors de la gestion du thread:', threadError)
-        logger.error('🎯 DEBUG: Type d\'erreur:', threadError.constructor.name)
-        logger.error('🎯 DEBUG: Message:', threadError.message)
-        logger.error('🎯 DEBUG: Stack complet:', threadError.stack)
-        // En cas d'erreur, NE PAS envoyer de message dans le channel principal
+        logger.error('Erreur générale lors de la gestion du thread:', threadError)
       }
 
       // Confirmer l'action à l'utilisateur
@@ -1128,58 +914,37 @@ class DiscordService {
         content: confirmMessage
       })
 
-      logger.info(`✅ Interaction traitée avec succès`)
+      // Nettoyer l'interaction du cache après succès
+      this.processedInteractions.delete(interaction.id)
+      this.interactionTimestamps.delete(interaction.id)
 
     } catch (error) {
       // Nettoyer l'interaction du cache en cas d'erreur
       this.processedInteractions.delete(interaction.id)
-      logger.error('❌ Erreur lors de la gestion de l\'interaction:', error)
-      logger.error(`🎯 DEBUG: Type d'erreur: ${error.constructor.name}`)
-      if (error instanceof Error) {
-        logger.error(`   Message d'erreur: ${error.message}`)
-        logger.error(`   Stack trace: ${error.stack}`)
-        
-        // Fallback pour interactions expirées : régénérer le message immédiatement
-        if (error.message.includes('10062') || error.message.includes('Unknown interaction')) {
-          const [action, commandeIdStr] = interaction.customId.split('_')
-          const commandeId = parseInt(commandeIdStr)
-          if (!isNaN(commandeId)) {
-            logger.info(`🔄 Tentative de régénération immédiate pour commande #${commandeId}`)
-            await this.regenerateSpecificMessage(commandeId)
-          }
+      this.interactionTimestamps.delete(interaction.id)
+      logger.error('Erreur lors de la gestion de l\'interaction:', error)
+      
+      if (error instanceof Error && (error.message.includes('10062') || error.message.includes('Unknown interaction'))) {
+        const [action, commandeIdStr] = interaction.customId.split('_')
+        const commandeId = parseInt(commandeIdStr)
+        if (!isNaN(commandeId)) {
+          await this.regenerateSpecificMessage(commandeId)
         }
       }
-      logger.info(`🎯 DEBUG: État de l'interaction:`)
-      logger.info(`🎯 DEBUG: - deferred: ${interaction.deferred}`)
-      logger.info(`🎯 DEBUG: - replied: ${interaction.replied}`)
-      logger.info(`🎯 DEBUG: - isApplicationCommand: ${interaction.isButton()}`)
       
       try {
-        logger.info(`🎯 DEBUG: Tentative de réponse d'erreur...`)
         if (interaction.deferred) {
-          logger.info(`🎯 DEBUG: Utilisation d'editReply pour l'erreur...`)
           await interaction.editReply({ 
             content: '❌ Une erreur est survenue lors du traitement'
           })
-          logger.info(`🎯 DEBUG: ✅ EditReply erreur réussi`)
         } else if (!interaction.replied) {
-          logger.info(`🎯 DEBUG: Utilisation de reply pour l'erreur...`)
           await interaction.reply({ 
             content: '❌ Une erreur est survenue lors du traitement', 
             flags: 64 // MessageFlags.Ephemeral
           })
-          logger.info(`🎯 DEBUG: ✅ Reply erreur réussi`)
-        } else {
-          logger.info(`🎯 DEBUG: Interaction déjà répondue, pas de réponse d'erreur envoyée`)
         }
       } catch (replyError) {
-        logger.error('❌ Erreur lors de la réponse d\'erreur:', replyError)
-        logger.error(`🎯 DEBUG: Type d'erreur de réponse: ${replyError.constructor.name}`)
-        if (replyError instanceof Error) {
-          logger.error(`🎯 DEBUG: Message erreur de réponse: ${replyError.message}`)
-        }
-        // Si on ne peut pas répondre, c'est probablement que l'interaction a expiré
-        logger.warn(`⚠️ Impossible de répondre à l'interaction, probablement expirée`)
+        logger.error('Erreur lors de la réponse d\'erreur:', replyError)
       }
     }
   }
@@ -1207,17 +972,40 @@ class DiscordService {
   }
 
   /**
+   * Nettoie les interactions anciennes du cache
+   */
+  private cleanupOldInteractions(): void {
+    const now = Date.now()
+    const maxAge = 5 * 60 * 1000 // 5 minutes
+    let cleanedCount = 0
+
+    for (const [interactionId, timestamp] of this.interactionTimestamps.entries()) {
+      if (now - timestamp > maxAge) {
+        this.processedInteractions.delete(interactionId)
+        this.interactionTimestamps.delete(interactionId)
+        cleanedCount++
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.info(`${cleanedCount} interaction(s) ancienne(s) nettoyée(s) du cache`)
+    }
+  }
+
+  /**
    * Régénère les messages Discord pour toutes les commandes actives au redémarrage
    */
   public async regenerateActiveOrderMessages(): Promise<void> {
+    // Nettoyer les interactions anciennes (plus de 5 minutes)
+    this.cleanupOldInteractions()
+    
     // Éviter la régénération si des interactions sont en cours de traitement
     if (this.processedInteractions.size > 0) {
-      logger.warn(`⚠️ Régénération reportée: ${this.processedInteractions.size} interaction(s) en cours`)
       return
     }
 
     try {
-      logger.info('🔄 Régénération des messages Discord pour les commandes actives...')
+      logger.info('Régénération des messages Discord pour les commandes actives...')
       
       // Importer les modèles nécessaires
       const { default: Commande } = await import('#models/commande')
@@ -1230,7 +1018,7 @@ class DiscordService {
         .whereNotIn('statut', ['livree', 'annulee'])
         .orderBy('id', 'asc')
 
-      logger.info(`📋 ${commandesActives.length} commande(s) active(s) trouvée(s)`)
+      logger.info(`${commandesActives.length} commande(s) active(s) trouvée(s)`)
 
       for (const commande of commandesActives) {
         try {
@@ -1277,7 +1065,6 @@ class DiscordService {
 
           // Éviter de régénérer si le message a été récemment modifié par une interaction
           if (commande.discordMessageId && this.recentlyUpdatedMessages.has(commande.discordMessageId)) {
-            logger.info(`⏭️ Message #${commande.id} ignoré (récemment modifié par interaction)`)
             continue
           }
 
@@ -1292,7 +1079,7 @@ class DiscordService {
           await new Promise(resolve => setTimeout(resolve, rateLimitDelay))
 
         } catch (commandeError) {
-          logger.error(`❌ Erreur lors de la régénération de la commande #${commande.id}:`, commandeError)
+          logger.error(`Erreur lors de la régénération de la commande #${commande.id}:`, commandeError)
         }
       }
 
