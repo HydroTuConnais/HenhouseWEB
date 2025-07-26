@@ -1,7 +1,8 @@
-import { Client, GatewayIntentBits, EmbedBuilder, TextChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle, ButtonInteraction } from 'discord.js'
+import { Client, GatewayIntentBits, EmbedBuilder, TextChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle, ButtonInteraction, Message } from 'discord.js'
 import { DateTime } from 'luxon'
 import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
+import AvailabilityService from '#services/availability_service'
 
 interface CommandeData {
   id: number
@@ -31,6 +32,7 @@ class DiscordService {
   private client: Client | null = null
   private channelId: string | undefined  // Canal principal pour les livraisons
   private clickCollectChannelId: string | undefined  // Canal pour les click & collect
+  private logsChannelId: string | undefined  // Canal pour les logs du serveur (duty events)
   private isConnected: boolean = false
   private readyPromise: Promise<void> | null = null
   private processedInteractions: Set<string> = new Set()
@@ -42,10 +44,12 @@ class DiscordService {
   constructor() {
     this.channelId = env.get('DISCORD_CHANNEL_ID')
     this.clickCollectChannelId = env.get('DISCORD_CLICK_COLLECT_CHANNEL_ID')
+    this.logsChannelId = env.get('DISCORD_LOGS_CHANNEL_ID')
     const nodeEnv = env.get('NODE_ENV', 'development')
     logger.info(`🤖 Bot Discord instance créée avec ID: ${this.botId} (${nodeEnv})`)
     logger.info(`📋 Canal livraisons: ${this.channelId}`)
     logger.info(`🏪 Canal click & collect: ${this.clickCollectChannelId}`)
+    logger.info(`📊 Canal logs: ${this.logsChannelId}`)
   }
 
   static getInstance(): DiscordService {
@@ -114,6 +118,11 @@ class DiscordService {
         if (!interaction.isButton()) return
         
         await this.handleButtonInteraction(interaction)
+      })
+
+      // Gérer les messages pour les événements duty
+      this.client.on('messageCreate', async (message) => {
+        await this.handleLogMessage(message)
       })
 
       this.client.on('error', (error) => {
@@ -1384,6 +1393,95 @@ class DiscordService {
     }, 10 * 60 * 1000) // 10 minutes
 
     logger.info('⏰ Régénération automatique activée (toutes les 10 minutes)')
+  }
+
+  /**
+   * Gère les messages reçus pour détecter les événements duty
+   */
+  private async handleLogMessage(message: Message): Promise<void> {
+    try {
+      // Vérifier si le message provient du canal de logs configuré
+      if (!this.logsChannelId || message.channelId !== this.logsChannelId) {
+        return
+      }
+
+      // Vérifier si le message contient des embeds
+      if (message.embeds.length === 0) {
+        return
+      }
+
+      // Traiter chaque embed
+      for (const embed of message.embeds) {
+        if (embed.title === 'duty - setStatus') {
+          logger.info('🔍 Événement duty détecté:', embed.title)
+          await this.processDutyEvent(embed)
+        }
+      }
+    } catch (error) {
+      logger.error('Erreur lors du traitement du message de logs:', error)
+    }
+  }
+
+  /**
+   * Traite un événement duty depuis un embed Discord
+   */
+  private async processDutyEvent(embed: any): Promise<void> {
+    try {
+      const status = this.getFieldValue(embed, 'status')
+      const discordId = this.getFieldValue(embed, 'discord')
+      const properName = this.getFieldValue(embed, 'properName')
+
+      if (!status || !discordId || !properName) {
+        logger.warn('Informations manquantes dans l\'événement duty:', { status, discordId, properName })
+        return
+      }
+
+      logger.info(`📊 Traitement événement duty: ${properName} (${discordId}) - statut: ${status}`)
+
+      if (status === 'true') {
+        // Employé commence son service
+        await AvailabilityService.addEmployeeToService(discordId, properName)
+        logger.info(`✅ ${properName} a commencé son service`)
+      } else if (status === 'false') {
+        // Employé termine son service
+        await AvailabilityService.removeEmployeeFromService(discordId)
+        logger.info(`❌ ${properName} a terminé son service`)
+      }
+
+      // Optionnel : Afficher le nombre d'employés actifs
+      const activeCount = await AvailabilityService.getActiveEmployeesCount()
+      logger.info(`👥 Employés actuellement en service: ${activeCount}`)
+
+    } catch (error) {
+      logger.error('Erreur lors du traitement de l\'événement duty:', error)
+    }
+  }
+
+  /**
+   * Extrait la valeur d'un champ depuis un embed Discord
+   */
+  private getFieldValue(embed: any, fieldName: string): string | null {
+    if (!embed.fields || !Array.isArray(embed.fields)) {
+      return null
+    }
+
+    const field = embed.fields.find((f: any) => f.name && f.name.toLowerCase().includes(fieldName.toLowerCase()))
+    if (!field) {
+      return null
+    }
+
+    // Gérer les formats possibles : "status", "status:true", "true", etc.
+    let value = field.value?.toString().trim()
+    
+    // Si le format est "status:true" ou "status:false", extraire la partie après ":"
+    if (value && value.includes(':')) {
+      const parts = value.split(':')
+      if (parts.length > 1) {
+        value = parts[1].trim()
+      }
+    }
+    
+    return value || null
   }
 
   /**
