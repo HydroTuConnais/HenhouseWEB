@@ -60,6 +60,13 @@ class DiscordService {
    */
   public async initialize(): Promise<void> {
     try {
+      const discordEnabled = env.get('DISCORD_SERVER', 'true')
+      
+      if (discordEnabled === 'false') {
+        logger.info('Discord service disabled via DISCORD_SERVER environment variable')
+        return  
+      }
+      
       const token = env.get('DISCORD_BOT_TOKEN')
       
       if (!token) {
