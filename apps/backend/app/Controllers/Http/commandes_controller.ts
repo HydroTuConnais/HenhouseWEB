@@ -799,4 +799,37 @@ export default class CommandesController {
       }
     })
   }
+
+  /**
+   * Vérifie la disponibilité des employés pour les commandes (route publique)
+   */
+  async checkAvailability({ response }: HttpContext) {
+    try {
+      const available = await AvailabilityService.areEmployeesAvailable()
+      const count = await AvailabilityService.getActiveEmployeesCount()
+      
+      if (!available) {
+        return response.status(503).json({
+          available: false,
+          count: 0,
+          message: "Service temporairement indisponible. Aucun employé n'est actuellement en service.",
+          error: "NO_EMPLOYEES_AVAILABLE"
+        })
+      }
+      
+      return response.ok({
+        available: true,
+        count: count,
+        message: `${count} employé(s) en service`
+      })
+    } catch (error) {
+      console.error('Erreur lors de la vérification de disponibilité:', error)
+      // En cas d'erreur, on permet les commandes par défaut
+      return response.ok({
+        available: true,
+        count: 0,
+        message: 'Service disponible'
+      })
+    }
+  }
 }

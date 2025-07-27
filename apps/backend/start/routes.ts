@@ -35,6 +35,9 @@ router
     router.get('/commandes/entreprises/:id', '#controllers/http/commandes_controller.getEntreprisePublic')
     router.post('/commandes/public', '#controllers/http/commandes_controller.storePublic')
     router.get('/commandes/statut/:numero', '#controllers/http/commandes_controller.getStatutPublic')
+    
+    // Route publique pour vérifier la disponibilité des employés
+    router.get('/availability/check', '#controllers/http/commandes_controller.checkAvailability')
   })
   .prefix('/api')
 
@@ -135,9 +138,6 @@ router
     router.post('/produits', '#controllers/http/admin_controller.createProduit')
     router.put('/produits/:id', '#controllers/http/admin_controller.updateProduit')
     router.delete('/produits/:id', '#controllers/http/admin_controller.deleteProduit')
-
-    // Test Discord
-    router.post('/discord/test', '#controllers/http/discord_controller.test')
   })
   .prefix('/api/admin')
   .use(middleware.auth())

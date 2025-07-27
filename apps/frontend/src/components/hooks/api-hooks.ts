@@ -516,6 +516,59 @@ export const useDeleteProduit = () => {
   })
 }
 
+// ========== HOOKS POUR DISPONIBILITÉ DES EMPLOYÉS ==========
+
+export interface EmployeeAvailability {
+  available: boolean
+  count: number
+  message?: string
+}
+
+// Hook pour vérifier la disponibilité des employés
+export const useEmployeeAvailability = () => {
+  return useQuery({
+    queryKey: ['employee-availability'],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest('/api/availability/check')
+        return {
+          available: response.available !== false, // Utiliser la valeur de l'API
+          count: response.count || 0,
+          message: response.message
+        } as EmployeeAvailability
+      } catch (error: any) {
+        // Si l'API retourne une erreur 503 (service indisponible)
+        if (error.status === 503) {
+          // Pour les erreurs 503, essayer de parser la réponse
+          try {
+            const errorData = typeof error.data === 'string' ? JSON.parse(error.data) : error.data
+            return {
+              available: false,
+              count: 0,
+              message: errorData?.message || "Aucun employé n'est actuellement disponible"
+            } as EmployeeAvailability
+          } catch {
+            return {
+              available: false,
+              count: 0,
+              message: "Aucun employé n'est actuellement disponible"
+            } as EmployeeAvailability
+          }
+        }
+        // Pour d'autres erreurs, on assume que le service est disponible
+        console.error('Erreur API availability:', error)
+        return {
+          available: true,
+          count: 0,
+          message: 'Erreur lors de la vérification'
+        } as EmployeeAvailability
+      }
+    },
+    refetchInterval: 30000, // Rafraîchir toutes les 30 secondes
+    staleTime: 25000, // Considérer les données comme obsolètes après 25 secondes
+  })
+}
+
 // ========== HOOKS POUR RELATIONS MENU-PRODUITS ==========
 
 // Hook pour récupérer les produits d'un menu spécifique (ADMIN)
