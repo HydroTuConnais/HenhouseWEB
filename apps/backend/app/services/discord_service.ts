@@ -104,12 +104,15 @@ class DiscordService {
         return
       }
 
+      // MessageContent intent maintenant activé dans le portail Discord
       this.client = new Client({
         intents: [
           GatewayIntentBits.Guilds,
           GatewayIntentBits.GuildMessages,
+          GatewayIntentBits.MessageContent
         ]
       })
+      logger.info('🔧 Client Discord créé AVEC MessageContent intent activé')
 
       // Créer une promesse qui se résout quand le bot est prêt
       this.readyPromise = new Promise((resolve) => {
@@ -137,7 +140,9 @@ class DiscordService {
         this.isConnected = false
       })
 
+      logger.info('🔐 Tentative de connexion Discord...')
       await this.client.login(token)
+      logger.info('✅ Login Discord réussi')
       
       // Attendre que le bot soit vraiment prêt
       await this.readyPromise
@@ -148,8 +153,17 @@ class DiscordService {
       // Optionnel : Régénération automatique toutes les 10 minutes
       this.startPeriodicRegeneration()
       
-    } catch (error) {
-      logger.error('Erreur lors de l\'initialisation du service Discord:', error)
+    } catch (error: any) {
+      logger.error('Erreur lors de l\'initialisation du service Discord:')
+      logger.error(`Type: ${error.name}`)
+      logger.error(`Message: ${error.message}`)
+      logger.error(`Stack: ${error.stack}`)
+      
+      // Tenter une reconnexion après 5 secondes
+      setTimeout(() => {
+        logger.info('🔄 Tentative de reconnexion Discord...')
+        this.initialize()
+      }, 5000)
     }
   }
 
@@ -1430,20 +1444,119 @@ class DiscordService {
         return
       }
 
-      // Vérifier si le message contient des embeds
-      if (message.embeds.length === 0) {
+      // Debug: Log tous les messages reçus dans le canal logs
+      logger.info(`📨 Message reçu dans canal logs: author=${message.author?.username}, content="${message.content}", embeds=${message.embeds.length}`)
+
+      // Méthode alternative : analyser le contenu du message au lieu des embeds
+      // Chercher des patterns dans le contenu du message qui indiquent un événement duty
+      if (message.content && (message.content.includes('duty') || message.content.includes('setStatus'))) {
+        logger.info('🔍 Contenu duty détecté dans le message')
+        await this.processDutyFromContent(message.content)
         return
       }
 
-      // Traiter chaque embed
-      for (const embed of message.embeds) {
-        if (embed.title === 'duty - setStatus') {
-          logger.info('🔍 Événement duty détecté:', embed.title)
-          await this.processDutyEvent(embed)
+      // Si pas d'embeds initialement, attendre un peu et re-vérifier
+      if (message.embeds.length === 0) {
+        logger.info('⏳ Aucun embed détecté, attente de 2 secondes...')
+        
+        setTimeout(async () => {
+          try {
+            // Re-fetch le message pour avoir les embeds à jour
+            const channel = await this.client?.channels.fetch(this.logsChannelId!) as any
+            if (channel && channel.messages) {
+              const refreshedMessage = await channel.messages.fetch(message.id)
+              logger.info(`🔄 Message re-vérifié: content="${refreshedMessage.content}", embeds=${refreshedMessage.embeds.length}`)
+              
+              if (refreshedMessage.embeds.length > 0) {
+                await this.processMessageEmbeds(refreshedMessage)
+              } else if (refreshedMessage.content && (refreshedMessage.content.includes('duty') || refreshedMessage.content.includes('setStatus'))) {
+                logger.info('🔍 Contenu duty détecté dans le message re-vérifié')
+                await this.processDutyFromContent(refreshedMessage.content)
+              }
+            }
+          } catch (fetchError) {
+            logger.error('Erreur lors de la re-vérification du message:', fetchError)
+          }
+        }, 2000)
+        
+        return
+      }
+
+      // Traiter immédiatement si des embeds sont présents
+      await this.processMessageEmbeds(message)
+      
+    } catch (error) {
+      logger.error('Erreur lors du traitement du message de logs:', error)
+    }
+  }
+
+  /**
+   * Traite les embeds d'un message
+   */
+  private async processMessageEmbeds(message: Message): Promise<void> {
+    if (message.embeds.length > 0) {
+      message.embeds.forEach((embed, index) => {
+        logger.info(`📋 Embed ${index}: title="${embed.title}", fields=${embed.fields?.length || 0}`)
+      })
+    }
+
+    // Traiter chaque embed
+    for (const embed of message.embeds) {
+      if (embed.title === 'duty - setStatus') {
+        logger.info('🔍 Événement duty détecté:', embed.title)
+        await this.processDutyEvent(embed)
+      } else {
+        logger.info(`🔍 Embed ignoré: title="${embed.title}" (attendu: "duty - setStatus")`)
+      }
+    }
+  }
+
+  /**
+   * Traite un événement duty depuis le contenu du message (méthode alternative)
+   */
+  private async processDutyFromContent(content: string): Promise<void> {
+    try {
+      logger.info(`🔍 Analyse du contenu: "${content}"`)
+      
+      // Patterns possibles selon votre bot de service
+      // Ex: "duty - setStatus: true/false" ou similar
+      
+      // Exemple de parsing simple - à adapter selon le format réel
+      if (content.includes('setStatus')) {
+        // Essayer d'extraire les informations depuis le contenu
+        // Format attendu pourrait être quelque chose comme:
+        // "duty - setStatus: true | User: username | Discord: 123456789"
+        
+        const statusMatch = content.match(/status[:\s]*(\w+)/i)
+        const userMatch = content.match(/user[:\s]*([^\|]+)/i) || content.match(/username[:\s]*([^\|]+)/i)
+        const discordMatch = content.match(/discord[:\s]*(\d+)/i)
+        
+        const status = statusMatch ? statusMatch[1].toLowerCase() : null
+        const properName = userMatch ? userMatch[1].trim() : null
+        const discordId = discordMatch ? discordMatch[1] : null
+        
+        logger.info(`📊 Parsing résultat: status=${status}, user=${properName}, discord=${discordId}`)
+        
+        if (status && discordId && properName) {
+          if (status === 'true' || status === 'on' || status === 'start') {
+            // Employé commence son service
+            await AvailabilityService.addEmployeeToService(discordId, properName)
+            logger.info(`✅ ${properName} a commencé son service`)
+          } else if (status === 'false' || status === 'off' || status === 'end') {
+            // Employé termine son service
+            await AvailabilityService.removeEmployeeFromService(discordId)
+            logger.info(`❌ ${properName} a terminé son service`)
+          }
+          
+          // Afficher le nombre d'employés actifs
+          const activeCount = await AvailabilityService.getActiveEmployeesCount()
+          logger.info(`👥 Employés actuellement en service: ${activeCount}`)
+        } else {
+          logger.warn('⚠️ Impossible d\'extraire les informations duty depuis le contenu')
         }
       }
     } catch (error) {
-      logger.error('Erreur lors du traitement du message de logs:', error)
+      logger.error('Erreur lors du traitement du contenu duty:', error)
     }
   }
 
