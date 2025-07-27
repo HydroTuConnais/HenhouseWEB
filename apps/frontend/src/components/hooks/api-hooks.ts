@@ -531,12 +531,14 @@ export const useEmployeeAvailability = () => {
     queryFn: async () => {
       try {
         const response = await apiRequest('/api/availability/check')
+        console.log('🔍 API Response:', response) // Debug log
         return {
           available: response.available !== false, // Utiliser la valeur de l'API
           count: response.count || 0,
           message: response.message
         } as EmployeeAvailability
       } catch (error: any) {
+        console.error('❌ API Error:', error) // Debug log
         // Si l'API retourne une erreur 503 (service indisponible)
         if (error.status === 503) {
           // Pour les erreurs 503, essayer de parser la réponse
@@ -564,8 +566,9 @@ export const useEmployeeAvailability = () => {
         } as EmployeeAvailability
       }
     },
-    refetchInterval: 30000, // Rafraîchir toutes les 30 secondes
-    staleTime: 25000, // Considérer les données comme obsolètes après 25 secondes
+    refetchInterval: 5000, // Rafraîchir toutes les 5 secondes (temporaire pour debug)
+    staleTime: 1000, // Considérer les données comme obsolètes après 1 seconde
+    refetchOnWindowFocus: true, // Rafraîchir quand la fenêtre reprend le focus
   })
 }
 
