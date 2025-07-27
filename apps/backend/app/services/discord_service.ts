@@ -1444,33 +1444,25 @@ class DiscordService {
         return
       }
 
-      // Debug: Log tous les messages reçus dans le canal logs
-      logger.info(`📨 Message reçu dans canal logs: author=${message.author?.username}, content="${message.content}", embeds=${message.embeds.length}`)
-
       // Méthode alternative : analyser le contenu du message au lieu des embeds
       // Chercher des patterns dans le contenu du message qui indiquent un événement duty
       if (message.content && (message.content.includes('duty') || message.content.includes('setStatus'))) {
-        logger.info('🔍 Contenu duty détecté dans le message')
         await this.processDutyFromContent(message.content)
         return
       }
 
       // Si pas d'embeds initialement, attendre un peu et re-vérifier
-      if (message.embeds.length === 0) {
-        logger.info('⏳ Aucun embed détecté, attente de 2 secondes...')
-        
+      if (message.embeds.length === 0) {        
         setTimeout(async () => {
           try {
             // Re-fetch le message pour avoir les embeds à jour
             const channel = await this.client?.channels.fetch(this.logsChannelId!) as any
             if (channel && channel.messages) {
               const refreshedMessage = await channel.messages.fetch(message.id)
-              logger.info(`🔄 Message re-vérifié: content="${refreshedMessage.content}", embeds=${refreshedMessage.embeds.length}`)
               
               if (refreshedMessage.embeds.length > 0) {
                 await this.processMessageEmbeds(refreshedMessage)
               } else if (refreshedMessage.content && (refreshedMessage.content.includes('duty') || refreshedMessage.content.includes('setStatus'))) {
-                logger.info('🔍 Contenu duty détecté dans le message re-vérifié')
                 await this.processDutyFromContent(refreshedMessage.content)
               }
             }
@@ -1494,19 +1486,10 @@ class DiscordService {
    * Traite les embeds d'un message
    */
   private async processMessageEmbeds(message: Message): Promise<void> {
-    if (message.embeds.length > 0) {
-      message.embeds.forEach((embed, index) => {
-        logger.info(`📋 Embed ${index}: title="${embed.title}", fields=${embed.fields?.length || 0}`)
-      })
-    }
-
     // Traiter chaque embed
     for (const embed of message.embeds) {
       if (embed.title === 'duty - setStatus') {
-        logger.info('🔍 Événement duty détecté:', embed.title)
         await this.processDutyEvent(embed)
-      } else {
-        logger.info(`🔍 Embed ignoré: title="${embed.title}" (attendu: "duty - setStatus")`)
       }
     }
   }
@@ -1516,12 +1499,6 @@ class DiscordService {
    */
   private async processDutyFromContent(content: string): Promise<void> {
     try {
-      logger.info(`🔍 Analyse du contenu: "${content}"`)
-      
-      // Patterns possibles selon votre bot de service
-      // Ex: "duty - setStatus: true/false" ou similar
-      
-      // Exemple de parsing simple - à adapter selon le format réel
       if (content.includes('setStatus')) {
         // Essayer d'extraire les informations depuis le contenu
         // Format attendu pourrait être quelque chose comme:
@@ -1534,9 +1511,7 @@ class DiscordService {
         const status = statusMatch ? statusMatch[1].toLowerCase() : null
         const properName = userMatch ? userMatch[1].trim() : null
         const discordId = discordMatch ? discordMatch[1] : null
-        
-        logger.info(`📊 Parsing résultat: status=${status}, user=${properName}, discord=${discordId}`)
-        
+                
         if (status && discordId && properName) {
           if (status === 'true' || status === 'on' || status === 'start') {
             // Employé commence son service
