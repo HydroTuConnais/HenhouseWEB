@@ -21,6 +21,7 @@ import {
 import { useCreateCommande } from '@/components/hooks/commandes-hooks'
 import { useIsAuthenticated, useEntrepriseId } from '@/components/stores/auth-store'
 import { useCart } from '@/components/hooks/use-cart'
+import { useEmployeeAvailability } from '@/components/hooks/api-hooks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +49,7 @@ export default function CommanderPage() {
   const createPublicMutation = useCreatePublicCommande()
   const createAuthMutation = useCreateCommande()
   const cart = useCart()
+  const employeeAvailability = useEmployeeAvailability()
 
   // Forcer la livraison si l&apos;utilisateur est connecté
   useEffect(() => {
@@ -110,6 +112,12 @@ export default function CommanderPage() {
 
   // Valider la commande
   const validerCommande = async () => {
+    // Vérifier d'abord la disponibilité des employés
+    if (!employeeAvailability.data?.available) {
+      toast.error(employeeAvailability.data?.message || "Service temporairement indisponible")
+      return
+    }
+
     if (!telephone.trim()) {
       toast.error('Veuillez saisir votre numéro de téléphone')
       return
@@ -283,6 +291,49 @@ export default function CommanderPage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Commander en ligne</h1>
           <p className="text-gray-600">Choisissez vos produits et finalisez votre commande</p>
         </div>
+
+        {/* Statut de disponibilité des employés */}
+        {employeeAvailability.isLoading ? (
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <div className="animate-pulse w-4 h-4 bg-gray-300 rounded-full"></div>
+                <span className="text-gray-600">Vérification de la disponibilité du service...</span>
+              </div>
+            </CardContent>
+          </Card>
+        ) : employeeAvailability.data?.available === false ? (
+          <Card className="mb-6 border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+                <div>
+                  <h3 className="font-semibold text-red-800">Service temporairement indisponible</h3>
+                  <p className="text-sm text-red-700">
+                    {employeeAvailability.data.message || "Aucun employé n'est actuellement en service pour traiter les commandes."}
+                  </p>
+                  <p className="text-xs text-red-600 mt-1">
+                    Veuillez réessayer plus tard ou nous contacter directement.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="mb-6 border-green-200 bg-green-50">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                <div>
+                  <h3 className="font-semibold text-green-800">Service disponible</h3>
+                  <p className="text-sm text-green-700">
+                    {employeeAvailability.data?.message || `${employeeAvailability.data?.count || 0} employé(s) en service`}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="max-w-2xl mx-auto">
           {/* Commande et livraison */}
@@ -537,11 +588,24 @@ export default function CommanderPage() {
 
             <Button 
               onClick={validerCommande} 
-              disabled={(createPublicMutation.isPending || createAuthMutation.isPending) || cart.items.length === 0}
+              disabled={
+                (createPublicMutation.isPending || createAuthMutation.isPending) || 
+                cart.items.length === 0 || 
+                employeeAvailability.data?.available === false
+              }
               size="lg"
-              className="w-full bg-orange-600 hover:bg-orange-700"
+              className={`w-full ${
+                employeeAvailability.data?.available === false 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-orange-600 hover:bg-orange-700'
+              }`}
             >
-              {(createPublicMutation.isPending || createAuthMutation.isPending) ? 'Commande en cours...' : `Commander (${formatPrice(cart.total)}$)`}
+              {employeeAvailability.data?.available === false 
+                ? 'Service indisponible' 
+                : (createPublicMutation.isPending || createAuthMutation.isPending) 
+                  ? 'Commande en cours...' 
+                  : `Commander (${formatPrice(cart.total)}$)`
+              }
             </Button>
           </div>
         </div>

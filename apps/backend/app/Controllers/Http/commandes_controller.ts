@@ -7,6 +7,7 @@ import User from '#models/user'
 import { createCommandeValidator } from '#validators/commande'
 import Database from '@adonisjs/lucid/services/db'
 import DiscordService from '#services/discord_service'
+import AvailabilityService from '#services/availability_service'
 
 export default class CommandesController {
   /**
@@ -273,6 +274,13 @@ export default class CommandesController {
 
   async store({ request, response, auth }: HttpContext) {
     const user = auth.user!
+    
+    // Vérifier si des employés sont disponibles pour traiter la commande
+    const employeesAvailable = await AvailabilityService.areEmployeesAvailable()
+    if (!employeesAvailable) {
+      return response.status(503).json(AvailabilityService.getUnavailabilityMessage())
+    }
+    
     const payload = await request.validateUsing(createCommandeValidator)
 
     // Validation personnalisée : au moins un des deux champs doit être présent
@@ -457,6 +465,12 @@ export default class CommandesController {
    * Crée une commande publique (sans authentification)
    */
   async storePublic({ request, response }: HttpContext) {
+    // Vérifier si des employés sont disponibles pour traiter la commande
+    const employeesAvailable = await AvailabilityService.areEmployeesAvailable()
+    if (!employeesAvailable) {
+      return response.status(503).json(AvailabilityService.getUnavailabilityMessage())
+    }
+    
     const payload = await request.validateUsing(createCommandeValidator)
 
     // Validation personnalisée : au moins un des deux champs doit être présent
@@ -784,5 +798,38 @@ export default class CommandesController {
         items: items // Nouvelle structure pour le frontend
       }
     })
+  }
+
+  /**
+   * Vérifie la disponibilité des employés pour les commandes (route publique)
+   */
+  async checkAvailability({ response }: HttpContext) {
+    try {
+      const available = await AvailabilityService.areEmployeesAvailable()
+      const count = await AvailabilityService.getActiveEmployeesCount()
+      
+      if (!available) {
+        return response.status(503).json({
+          available: false,
+          count: 0,
+          message: "Service temporairement indisponible. Aucun employé n'est actuellement en service.",
+          error: "NO_EMPLOYEES_AVAILABLE"
+        })
+      }
+      
+      return response.ok({
+        available: true,
+        count: count,
+        message: `${count} employé(s) en service`
+      })
+    } catch (error) {
+      console.error('Erreur lors de la vérification de disponibilité:', error)
+      // En cas d'erreur, on permet les commandes par défaut
+      return response.ok({
+        available: true,
+        count: 0,
+        message: 'Service disponible'
+      })
+    }
   }
 }
