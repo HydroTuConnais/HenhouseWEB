@@ -51,11 +51,6 @@ export default function CommanderPage() {
   const cart = useCart()
   const employeeAvailability = useEmployeeAvailability()
 
-  // Debug log pour voir l'état de la disponibilité
-  console.log('🔍 Employee Availability Data:', employeeAvailability.data)
-  console.log('🔍 Available?:', employeeAvailability.data?.available)
-  console.log('🔍 Available === false?:', employeeAvailability.data?.available === false)
-
   // Forcer la livraison si l&apos;utilisateur est connecté
   useEffect(() => {
     if (isAuthenticated && typeLivraison === 'click_and_collect') {
