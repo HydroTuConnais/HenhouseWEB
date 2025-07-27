@@ -30,8 +30,9 @@ interface CommandeData {
 class DiscordService {
   private static instance: DiscordService | null = null
   private client: Client | null = null
-  private channelId: string | undefined  // Canal principal pour les livraisons
+  private channelId: string | undefined  // Canal principal pour les livraisons d'entreprise
   private clickCollectChannelId: string | undefined  // Canal pour les click & collect
+  private publicOrdersChannelId: string | undefined  // Canal pour les commandes publiques
   private logsChannelId: string | undefined  // Canal pour les logs du serveur (duty events)
   private isConnected: boolean = false
   private readyPromise: Promise<void> | null = null
@@ -44,11 +45,13 @@ class DiscordService {
   constructor() {
     this.channelId = env.get('DISCORD_CHANNEL_ID')
     this.clickCollectChannelId = env.get('DISCORD_CLICK_COLLECT_CHANNEL_ID')
+    this.publicOrdersChannelId = env.get('DISCORD_PUBLIC_ORDERS_CHANNEL_ID')
     this.logsChannelId = env.get('DISCORD_LOGS_CHANNEL_ID')
     const nodeEnv = env.get('NODE_ENV', 'development')
     logger.info(`🤖 Bot Discord instance créée avec ID: ${this.botId} (${nodeEnv})`)
-    logger.info(`📋 Canal livraisons: ${this.channelId}`)
+    logger.info(`📋 Canal livraisons entreprise: ${this.channelId}`)
     logger.info(`🏪 Canal click & collect: ${this.clickCollectChannelId}`)
+    logger.info(`🌐 Canal commandes publiques: ${this.publicOrdersChannelId}`)
     logger.info(`📊 Canal logs: ${this.logsChannelId}`)
   }
 
@@ -78,17 +81,21 @@ class DiscordService {
         return
       }
 
-      if (!this.channelId && !this.clickCollectChannelId) {
+      if (!this.channelId && !this.clickCollectChannelId && !this.publicOrdersChannelId) {
         logger.warn('Aucun canal Discord configuré, service Discord désactivé')
         return
       }
       
       if (!this.channelId) {
-        logger.warn('Canal livraisons Discord non configuré')
+        logger.warn('Canal livraisons entreprise Discord non configuré')
       }
       
       if (!this.clickCollectChannelId) {
         logger.warn('Canal click & collect Discord non configuré')
+      }
+
+      if (!this.publicOrdersChannelId) {
+        logger.warn('Canal commandes publiques Discord non configuré')
       }
 
       // Si déjà connecté, ne pas reconnecter
@@ -189,16 +196,20 @@ class DiscordService {
         return
       }
 
-      const targetChannelId = commande.type_livraison === 'click_and_collect' 
-        ? this.clickCollectChannelId 
-        : this.channelId
-      
       const embed = this.createCommandeEmbed(commande, '🆕 Nouvelle Commande', 0x00ff00)
       const buttons = this.createCommandeButtons(commande.id, commande.statut)
       
-      const rolePing = commande.type_livraison === 'click_and_collect' 
-        ? '<@&1167430810295611412>' 
-        : '<@&1264722214390075542>'
+      // Déterminer le rôle à mentionner selon le type de commande et de livraison
+      let rolePing: string
+      if (!commande.entreprise.nom || commande.entreprise.nom === 'Commande publique') {
+        // Commande publique - utiliser un rôle spécifique ou le rôle de livraison par défaut
+        rolePing = '<@&1264722214390075542>' // Rôle pour commandes publiques
+      } else {
+        // Commande d'entreprise - utiliser la logique existante
+        rolePing = commande.type_livraison === 'click_and_collect' 
+          ? '<@&1167430810295611412>' 
+          : '<@&1264722214390075542>'
+      }
       
       const message = await channel.send({ 
         content: rolePing,
@@ -302,12 +313,20 @@ class DiscordService {
   }
 
   /**
-   * Détermine le canal approprié selon le type de livraison
+   * Détermine le canal approprié selon le type de commande et de livraison
    */
   private async getChannelForCommande(commande: CommandeData): Promise<TextChannel | null> {
-    const targetChannelId = commande.type_livraison === 'click_and_collect' 
-      ? this.clickCollectChannelId 
-      : this.channelId
+    let targetChannelId: string | undefined
+    
+    // Si c'est une commande publique (pas d'entreprise), utiliser le canal spécifique
+    if (!commande.entreprise.nom || commande.entreprise.nom === 'Commande publique') {
+      targetChannelId = this.publicOrdersChannelId
+    } else {
+      // Pour les commandes d'entreprise, utiliser la logique existante
+      targetChannelId = commande.type_livraison === 'click_and_collect' 
+        ? this.clickCollectChannelId 
+        : this.channelId
+    }
     
     return this.getChannelById(targetChannelId)
   }
@@ -640,7 +659,7 @@ class DiscordService {
     }
     
     // Vérifier le canal autorisé
-    const allowedChannels = [this.channelId, this.clickCollectChannelId].filter(Boolean)
+    const allowedChannels = [this.channelId, this.clickCollectChannelId, this.publicOrdersChannelId].filter(Boolean)
     if (!allowedChannels.includes(interaction.channelId)) {
       return
     }
@@ -1174,16 +1193,22 @@ class DiscordService {
         }
       }
 
-      // Vérifier si le message est dans le bon canal (livraison vs click&collect)
+      // Vérifier si le message est dans le bon canal selon la nouvelle logique
       const currentChannelId = oldMessage.channel.id
-      const expectedChannelId = commandeData.type_livraison === 'click_and_collect' 
-        ? this.clickCollectChannelId 
-        : this.channelId
+      let expectedChannelId: string | undefined
+      
+      if (!commandeData.entreprise.nom || commandeData.entreprise.nom === 'Commande publique') {
+        expectedChannelId = this.publicOrdersChannelId
+      } else {
+        expectedChannelId = commandeData.type_livraison === 'click_and_collect' 
+          ? this.clickCollectChannelId 
+          : this.channelId
+      }
 
       if (currentChannelId !== expectedChannelId) {
         // Le message est dans le mauvais canal, le supprimer et créer un nouveau
         await oldMessage.delete()
-        logger.info(`🔄 Message déplacé de canal pour commande #${commande.id}`)
+        logger.info(`🔄 Message déplacé de canal pour commande #${commande.id} (${commandeData.entreprise.nom === 'Commande publique' ? 'publique' : 'entreprise'})`)
         return false
       }
 
